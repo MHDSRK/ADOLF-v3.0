@@ -263,7 +263,6 @@ export function TemplateManager() {
       const matching = whatsappConfigs.find((config) => config.waba_id === template.waba_id && config.status === 'connected');
       if (matching) setSelectedConfigId(matching.id);
     }
-    if (template.whatsapp_config_id) setSelectedConfigId(template.whatsapp_config_id);
     setForm({
       name: template.name,
       category: template.category,
@@ -553,7 +552,7 @@ export function TemplateManager() {
         description={t('description')}
         action={
           <div className="flex items-center gap-2">
-            <Select value={selectedConfigId} onValueChange={setSelectedConfigId}>
+            <Select value={selectedConfigId} onValueChange={(value) => setSelectedConfigId(value ?? '')}>
               <SelectTrigger className="w-[210px]">
                 <SelectValue placeholder="WhatsApp connection" />
               </SelectTrigger>
