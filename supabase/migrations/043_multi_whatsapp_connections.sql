@@ -157,25 +157,21 @@ GRANT EXECUTE ON FUNCTION public.create_broadcast_with_recipients(
 ) TO service_role;
 
 
--- Template catalogs belong to a WABA/WhatsApp connection. This matters
--- when an account connects numbers from different WABAs: identical
--- template names can legitimately exist in each WABA with different
--- approval state/components.
+-- Template catalogs belong to a WABA, not to an individual phone
+-- number. Multiple phone numbers can share one WABA and therefore one
+-- Meta template catalog; different WABAs in the same CRM account do not.
 ALTER TABLE message_templates
-  ADD COLUMN IF NOT EXISTS whatsapp_config_id UUID
-  REFERENCES whatsapp_config(id) ON DELETE SET NULL;
+  ADD COLUMN IF NOT EXISTS waba_id TEXT;
 
-CREATE INDEX IF NOT EXISTS idx_message_templates_whatsapp_config
-  ON message_templates(whatsapp_config_id);
+CREATE INDEX IF NOT EXISTS idx_message_templates_waba_id
+  ON message_templates(waba_id);
 
 UPDATE message_templates mt
-SET whatsapp_config_id = wc.id
+SET waba_id = wc.waba_id
 FROM whatsapp_config wc
 WHERE mt.account_id = wc.account_id
-  AND mt.whatsapp_config_id IS NULL;
+  AND mt.waba_id IS NULL;
 
-DROP INDEX IF EXISTS message_templates_user_name_language_key;
-
-CREATE UNIQUE INDEX IF NOT EXISTS message_templates_account_config_name_language_key
-  ON message_templates(account_id, whatsapp_config_id, name, language)
-  WHERE whatsapp_config_id IS NOT NULL;
+CREATE UNIQUE INDEX IF NOT EXISTS message_templates_account_waba_name_language_key
+  ON message_templates(account_id, waba_id, name, language)
+  WHERE waba_id IS NOT NULL;
