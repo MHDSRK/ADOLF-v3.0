@@ -58,6 +58,7 @@ export async function POST(request: Request) {
       template_message_params,
       interactive_payload,
       reply_to_message_id,
+      whatsapp_config_id: whatsappConfigId,
     } = body
 
     if ((!conversationIdInput && !contact_id) || !message_type) {
@@ -110,6 +111,28 @@ export async function POST(request: Request) {
       }
       conversationId = data.id
     } else {
+      if (!whatsappConfigId || typeof whatsappConfigId !== 'string') {
+        return NextResponse.json(
+          { error: 'whatsapp_config_id is required when starting a new conversation' },
+          { status: 400 },
+        )
+      }
+
+      const { data: selectedConfig } = await supabase
+        .from('whatsapp_config')
+        .select('id')
+        .eq('id', whatsappConfigId)
+        .eq('account_id', accountId)
+        .eq('status', 'connected')
+        .maybeSingle()
+
+      if (!selectedConfig) {
+        return NextResponse.json(
+          { error: 'WhatsApp connection not found or disconnected' },
+          { status: 404 },
+        )
+      }
+
       // contact_id path: verify the contact is in this account first so a
       // caller can't open a conversation against someone else's contact.
       const { data: contactRow, error: contactErr } = await supabase
@@ -130,7 +153,8 @@ export async function POST(request: Request) {
         supabase,
         accountId,
         userId,
-        contact_id
+        contact_id,
+        whatsappConfigId,
       )
       if (!resolved) {
         return NextResponse.json(
@@ -203,12 +227,14 @@ async function findOrCreateConversation(
   accountId: string,
   userId: string,
   contactId: string,
+  whatsappConfigId: string,
 ): Promise<string | null> {
   const { data: existing } = await supabase
     .from('conversations')
     .select('id')
     .eq('account_id', accountId)
     .eq('contact_id', contactId)
+    .eq('whatsapp_config_id', whatsappConfigId)
     .maybeSingle()
 
   if (existing) return existing.id
@@ -219,6 +245,7 @@ async function findOrCreateConversation(
       account_id: accountId,
       user_id: userId,
       contact_id: contactId,
+      whatsapp_config_id: whatsappConfigId,
     })
     .select('id')
     .single()
