@@ -91,7 +91,11 @@ function LoginPageInner() {
             {inviteToken ? (
               <UsersRound className="h-6 w-6 text-primary" />
             ) : (
-              <MessageSquare className="h-6 w-6 text-primary" />
+              <img
+                src="/adolf-v3-mark.svg"
+                alt="ADOLF v3.0"
+                className="h-7 w-7 object-contain"
+              />
             )}
           </div>
           <CardTitle className="text-xl text-foreground">
