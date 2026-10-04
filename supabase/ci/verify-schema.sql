@@ -75,6 +75,46 @@ BEGIN
       'messages.error_code/error_title/error_details are missing — migration 042 did not apply';
   END IF;
 
+  -- Multi-number WhatsApp routing (043).
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public'
+      AND table_name = 'conversations'
+      AND column_name = 'whatsapp_config_id'
+  ) THEN
+    RAISE EXCEPTION 'conversations.whatsapp_config_id is missing — migration 043 did not apply';
+  END IF;
+
+  IF to_regclass('public.idx_conversations_account_contact_channel') IS NULL THEN
+    RAISE EXCEPTION
+      'idx_conversations_account_contact_channel is missing — migration 043 did not apply';
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1
+    FROM pg_constraint
+    WHERE conname = 'whatsapp_config_phone_number_id_key'
+  ) THEN
+    RAISE EXCEPTION
+      'whatsapp_config_phone_number_id_key is missing — migration 043 did not apply';
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public'
+      AND table_name = 'broadcasts'
+      AND column_name = 'whatsapp_config_id'
+  ) THEN
+    RAISE EXCEPTION 'broadcasts.whatsapp_config_id is missing — migration 043 did not apply';
+  END IF;
+
+  IF pg_get_functiondef(
+       'public.create_broadcast_with_recipients(uuid,uuid,text,text,text,integer,uuid[],jsonb[],uuid)'::regprocedure
+     ) NOT LIKE '%whatsapp_config_id%' THEN
+    RAISE EXCEPTION
+      'connection-aware create_broadcast_with_recipients is missing — migration 043 did not apply';
+  END IF;
+
   RAISE NOTICE 'schema verification passed';
 END
 $$;
