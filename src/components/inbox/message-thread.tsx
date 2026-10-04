@@ -1189,6 +1189,7 @@ export function MessageThread({
       />
 
       <TemplatePicker
+        whatsappConfigId={conversation.whatsapp_config_id}
         open={templateModalOpen}
         onOpenChange={setTemplateModalOpen}
         onSelect={handleSendTemplate}
