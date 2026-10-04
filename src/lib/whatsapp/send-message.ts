@@ -384,7 +384,7 @@ export async function sendMessageToConversation(
       const p = interactivePayload!;
       if (p.kind === 'buttons') {
         const result = await sendInteractiveButtons({
-          phoneNumberId: config.phone_number_id,
+          phoneNumberId,
           accessToken,
           to: phone,
           bodyText: p.body,
