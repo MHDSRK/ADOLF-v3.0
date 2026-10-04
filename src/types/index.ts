@@ -172,6 +172,8 @@ export interface Conversation {
   id: string;
   user_id: string;
   contact_id: string;
+  /** WhatsApp connection/channel used by this thread. Null only for legacy history after a connection was removed. */
+  whatsapp_config_id?: string | null;
   status: ConversationStatus;
   assigned_agent_id?: string;
   last_message_text?: string;
@@ -345,6 +347,8 @@ export interface TemplateSampleValues {
 }
 
 export interface MessageTemplate {
+  /** Meta WABA whose template catalog owns this row. */
+  waba_id?: string | null;
   id: string;
   user_id: string;
   name: string;
@@ -419,6 +423,8 @@ export interface Broadcast {
   name: string;
   template_name: string;
   template_language: string;
+  /** WhatsApp connection used to send this campaign. */
+  whatsapp_config_id?: string | null;
   template_variables?: Record<string, unknown>;
   audience_filter?: Record<string, unknown>;
   scheduled_at?: string;

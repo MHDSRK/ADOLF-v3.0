@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { requireRole, toErrorResponse } from '@/lib/auth/account';
 import { sendReactionMessage } from '@/lib/whatsapp/meta-api';
-import { decrypt } from '@/lib/whatsapp/encryption';
+import { loadConversationMetaCredentials } from '@/lib/whatsapp/conversation-config';
 import { resolveContactSendTarget } from '@/lib/whatsapp/wa-identity';
 import {
   checkRateLimit,
@@ -91,25 +91,31 @@ export async function POST(request: Request) {
       );
     }
 
-    // WhatsApp config + access token. Account-scoped post-multi-user.
-    const { data: config, error: configError } = await supabase
-      .from('whatsapp_config')
-      .select('phone_number_id, access_token')
-      .eq('account_id', accountId)
-      .single();
-
-    if (configError || !config) {
+    // Reactions must leave through the same WhatsApp number as the
+    // conversation. Using the account-wide config here would be ambiguous
+    // once an account has multiple numbers.
+    let metaCredentials;
+    try {
+      metaCredentials = await loadConversationMetaCredentials(
+        supabase,
+        accountId,
+        targetMessage.conversation_id,
+      );
+    } catch (error) {
       return NextResponse.json(
-        { error: 'WhatsApp not configured.' },
+        {
+          error:
+            error instanceof Error ? error.message : 'WhatsApp connection unavailable',
+        },
         { status: 400 },
       );
     }
 
-    const accessToken = decrypt(config.access_token);
+    const { phoneNumberId, accessToken } = metaCredentials;
 
     try {
       await sendReactionMessage({
-        phoneNumberId: config.phone_number_id,
+        phoneNumberId,
         accessToken,
         to: sendTarget.target,
         targetMessageId: targetMessage.message_id,

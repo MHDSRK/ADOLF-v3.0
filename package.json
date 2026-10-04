@@ -1,17 +1,17 @@
 {
-  "name": "wacrm",
-  "version": "0.8.0",
+  "name": "adolf-v3.0",
+  "version": "3.0.0",
   "private": true,
-  "description": "Self-hostable CRM template for WhatsApp built on Next.js and Supabase — shared inbox, contacts, sales pipelines, broadcasts, and no-code automations.",
+  "description": "Adolf-V3.0 — a personal, account-scoped WhatsApp CRM for conversations, contacts, sales, broadcasts, and automations.",
   "license": "MIT",
-  "author": "Arnas Donauskas",
-  "homepage": "https://github.com/ArnasDon/wacrm",
+  "author": "MHDSRK",
+  "homepage": "https://github.com/MHDSRK/MYCRM",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/ArnasDon/wacrm.git"
+    "url": "git+https://github.com/MHDSRK/MYCRM.git"
   },
   "bugs": {
-    "url": "https://github.com/ArnasDon/wacrm/issues"
+    "url": "https://github.com/MHDSRK/MYCRM/issues"
   },
   "keywords": [
     "crm",

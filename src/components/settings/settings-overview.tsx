@@ -6,8 +6,6 @@ import { useTranslations } from 'next-intl';
 
 import { createClient } from '@/lib/supabase/client';
 import { useAuth } from '@/hooks/use-auth';
-import { useTheme } from '@/hooks/use-theme';
-import { THEMES } from '@/lib/themes';
 import { CURRENCIES } from '@/lib/currency';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Card } from '@/components/ui/card';
@@ -38,7 +36,6 @@ export function SettingsOverview({
 }) {
   const { user, profile, accountId, accountRole, defaultCurrency, canManageMembers } =
     useAuth();
-  const { mode, theme } = useTheme();
   const t = useTranslations('Settings.overview');
   const tRoles = useTranslations('Settings.roles');
   const tSections = useTranslations('Settings.sections');
@@ -56,7 +53,6 @@ export function SettingsOverview({
     if (!user || !accountId) return;
     let cancelled = false;
     const supabase = createClient();
-    const userId = user.id;
     const acctId = accountId;
 
     // Cheap counts — resolve fast, render immediately.
@@ -73,16 +69,16 @@ export function SettingsOverview({
           supabase
             .from('message_templates')
             .select('id', { count: 'exact', head: true })
-            .eq('user_id', userId),
+            .eq('account_id', acctId),
           supabase
             .from('message_templates')
             .select('id', { count: 'exact', head: true })
-            .eq('user_id', userId)
+            .eq('account_id', acctId)
             .eq('status', 'PENDING'),
           supabase
             .from('tags')
             .select('id', { count: 'exact', head: true })
-            .eq('user_id', userId),
+            .eq('account_id', acctId),
           supabase.from('custom_fields').select('id', { count: 'exact', head: true }),
         ]);
 
@@ -125,12 +121,12 @@ export function SettingsOverview({
           .from('whatsapp_config')
           .select('phone_number_id')
           .eq('account_id', acctId)
-          .maybeSingle(),
+          .limit(1),
         fetch('/api/whatsapp/config', { cache: 'no-store' }).then((r) => r.json()),
       ]);
       if (cancelled) return;
       setWhatsapp({
-        configured: row.status === 'fulfilled' && !!row.value.data?.phone_number_id,
+        configured: row.status === 'fulfilled' && (row.value.data?.length ?? 0) > 0,
         connected: health.status === 'fulfilled' && !!health.value?.connected,
       });
       setWhatsappLoading(false);
@@ -148,8 +144,6 @@ export function SettingsOverview({
 
   const currencyLabel =
     CURRENCIES.find((c) => c.code === defaultCurrency)?.label ?? defaultCurrency;
-  const themeName = THEMES.find((t) => t.id === theme)?.name ?? theme;
-  const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 
   // Per-tile loading + subtitle. `null` counts render as a graceful
   // fallback so a single failed query never blanks a tile.
@@ -211,11 +205,6 @@ export function SettingsOverview({
           : `${t('tagsCount', { count: counts?.tags ?? 0 })} · ${t('fieldsCount', {
               count: counts?.customFields ?? 0,
             })}`,
-    },
-    {
-      section: 'appearance',
-      loading: false,
-      subtitle: t('appearance', { mode: cap(mode), theme: themeName }),
     },
   ];
 

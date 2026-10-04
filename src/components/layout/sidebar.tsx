@@ -97,7 +97,7 @@ const navItems: NavItem[] = [
   { href: "/pipelines", labelKey: "pipelines", icon: GitBranch },
   { href: "/broadcasts", labelKey: "broadcasts", icon: Radio },
   { href: "/automations", labelKey: "automations", icon: Zap },
-  { href: "/flows", labelKey: "flows", icon: Workflow, beta: true },
+  { href: "/flows", labelKey: "flows", icon: Workflow },
   { href: "/agents", labelKey: "aiAgents", icon: Bot },
 ];
 
@@ -187,12 +187,10 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
         {/* Logo row. On mobile we put a close button here; on desktop the
             close button is hidden since the sidebar is always-visible. */}
         <div className="flex h-14 shrink-0 items-center justify-between gap-2 border-b border-border px-4">
-          <Link href="/dashboard" className="flex items-center gap-2">
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
-              <MessageSquare className="h-4 w-4" />
-            </div>
+          <Link href="/inbox" className="flex items-center gap-2">
+            <img src="/adolf-v3-mark.svg" alt="" className="h-8 w-8 object-contain" />
             <span className="text-sm font-semibold text-foreground">
-              {t("title")}
+              ADOLF v3.0
             </span>
           </Link>
           <button
@@ -206,8 +204,8 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
         </div>
 
         {/* Main navigation */}
-        <nav className="flex-1 overflow-y-auto px-3 py-4">
-          <ul className="flex flex-col gap-1">
+        <nav className="flex flex-1 flex-col overflow-y-auto px-3 py-3">
+          <ul className="flex flex-col gap-0.5">
             {navItems.map((item) => {
               const isActive =
                 pathname === item.href ||
@@ -229,7 +227,7 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
                     href={item.href}
                     className={cn(
                       // Taller on mobile so fingers can hit the row reliably (≥44px).
-                      "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors lg:py-2",
+                      "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors lg:py-1.5",
                       isActive
                         ? "bg-primary/10 text-primary"
                         : "text-muted-foreground hover:bg-muted hover:text-foreground",
@@ -268,9 +266,9 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
             })}
           </ul>
 
-          <div className="my-4 border-t border-border" />
-
-          <ul className="flex flex-col gap-1">
+          <div className="mt-auto pt-3">
+            <div className="mb-2 border-t border-border" />
+            <ul className="flex flex-col gap-0.5">
             {bottomNavItems.map((item) => {
               const isActive = pathname.startsWith(item.href);
               return (
@@ -278,7 +276,7 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
                   <Link
                     href={item.href}
                     className={cn(
-                      "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors lg:py-2",
+                      "flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors lg:py-1.5",
                       isActive
                         ? "bg-primary/10 text-primary"
                         : "text-muted-foreground hover:bg-muted hover:text-foreground",
@@ -290,7 +288,8 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
                 </li>
               );
             })}
-          </ul>
+            </ul>
+          </div>
         </nav>
 
         {/* User section */}

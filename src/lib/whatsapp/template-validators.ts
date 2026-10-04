@@ -35,6 +35,8 @@ export const TEMPLATE_LIMITS = {
 } as const;
 
 export interface TemplatePayload {
+  /** WhatsApp connection/WABA that owns this template catalog. */
+  whatsapp_config_id?: string;
   name: string;
   category: MessageTemplate['category'];
   language: string;

@@ -1,7 +1,7 @@
 import { NextResponse, after } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { decrypt, encrypt, isLegacyFormat } from '@/lib/whatsapp/encryption'
-import { getMediaUrl, downloadMedia } from '@/lib/whatsapp/meta-api'
+import { getMediaUrl } from '@/lib/whatsapp/meta-api'
 import { mirrorInboundMedia } from '@/lib/whatsapp/mirror-inbound-media'
 import { normalizePhone } from '@/lib/whatsapp/phone-utils'
 import {
@@ -356,6 +356,7 @@ async function processWebhook(body: { entry?: WhatsAppWebhookEntry[] }) {
           // the admin who saved the WhatsApp config.
           config.user_id,
           decryptedAccessToken,
+          config.id,
           // Default ON: the column is NOT NULL DEFAULT TRUE, but a row
           // read before migration 039 lands would have it undefined,
           // and losing attachments is the failure mode worth avoiding.
@@ -662,6 +663,7 @@ async function processMessage(
   // WhatsApp config; the choice is arbitrary post-017 but stable.
   configOwnerUserId: string,
   accessToken: string,
+  whatsappConfigId: string,
   // Per-account opt-out for the inbound-media mirror (migration 039).
   // See parseMessageContent for what it turns off.
   mirrorMedia: boolean
@@ -693,7 +695,8 @@ async function processMessage(
   const convResult = await findOrCreateConversation(
     accountId,
     configOwnerUserId,
-    contactRecord.id
+    contactRecord.id,
+    whatsappConfigId
   )
   if (!convResult) return
   const conversation = convResult.conversation
@@ -1379,6 +1382,7 @@ async function findOrCreateConversation(
   accountId: string,
   configOwnerUserId: string,
   contactId: string,
+  whatsappConfigId: string,
 ) {
   // Look for an existing conversation in this account, oldest-first.
   //
@@ -1398,6 +1402,7 @@ async function findOrCreateConversation(
     .select('*')
     .eq('account_id', accountId)
     .eq('contact_id', contactId)
+    .eq('whatsapp_config_id', whatsappConfigId)
     .order('created_at', { ascending: true })
     .limit(1)
 
@@ -1418,6 +1423,7 @@ async function findOrCreateConversation(
       account_id: accountId,
       user_id: configOwnerUserId,
       contact_id: contactId,
+      whatsapp_config_id: whatsappConfigId,
     })
     .select()
     .single()
@@ -1433,6 +1439,7 @@ async function findOrCreateConversation(
         .select('*')
         .eq('account_id', accountId)
         .eq('contact_id', contactId)
+        .eq('whatsapp_config_id', whatsappConfigId)
         .order('created_at', { ascending: true })
         .limit(1)
       if (raced && raced.length > 0) {

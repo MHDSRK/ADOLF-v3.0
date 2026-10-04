@@ -89,6 +89,7 @@ export async function POST(request: Request) {
       template_name,
       template_language,
       template_params,
+      whatsapp_config_id,
     } = body
 
     // Normalize to a list of {phone, params} regardless of shape.
@@ -120,10 +121,19 @@ export async function POST(request: Request) {
       )
     }
 
+    if (!whatsapp_config_id || typeof whatsapp_config_id !== 'string') {
+      return NextResponse.json(
+        { error: 'whatsapp_config_id is required for broadcasts' },
+        { status: 400 },
+      )
+    }
+
     const { data: config, error: configError } = await supabase
       .from('whatsapp_config')
       .select('*')
+      .eq('id', whatsapp_config_id)
       .eq('account_id', accountId)
+      .eq('status', 'connected')
       .single()
 
     if (configError || !config) {

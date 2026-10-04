@@ -53,6 +53,7 @@ export interface CreateBroadcastParams {
   templateName: string;
   templateLanguage?: string | null;
   recipients: BroadcastRecipientInput[];
+  whatsappConfigId: string;
 }
 
 interface PlannedRecipient {
@@ -71,6 +72,7 @@ export interface BroadcastPlan {
   planned: PlannedRecipient[];
   /** Phones rejected up front (invalid E.164) — counted as failed. */
   rejected: number;
+  whatsappConfigId: string;
 }
 
 const MAX_RECIPIENTS = 1000;
@@ -87,7 +89,7 @@ export async function createBroadcast(
   auditUserId: string,
   params: CreateBroadcastParams
 ): Promise<BroadcastPlan> {
-  const { name, templateName, recipients } = params;
+  const { name, templateName, recipients, whatsappConfigId } = params;
 
   if (!templateName) {
     throw new BroadcastError('bad_request', "'template_name' is required", 400);
@@ -107,17 +109,27 @@ export async function createBroadcast(
     );
   }
 
-  // Config (fail fast + provides the audit trail owner already resolved
-  // by the caller). Meta send needs phone_number_id + decrypted token.
+  // Broadcasts have no inbound conversation to inherit a channel from,
+  // so the caller must choose the sending connection explicitly.
+  if (!whatsappConfigId) {
+    throw new BroadcastError(
+      'bad_request',
+      'whatsapp_config_id is required for broadcasts',
+      400,
+    );
+  }
+
   const { data: config, error: configError } = await db
     .from('whatsapp_config')
     .select('*')
+    .eq('id', whatsappConfigId)
     .eq('account_id', accountId)
+    .eq('status', 'connected')
     .single();
   if (configError || !config) {
     throw new BroadcastError(
       'whatsapp_not_configured',
-      'WhatsApp not configured. Please set up your WhatsApp integration first.',
+      'WhatsApp connection not found or disconnected',
       400
     );
   }
@@ -129,7 +141,8 @@ export async function createBroadcast(
     db,
     accountId,
     templateName,
-    params.templateLanguage
+    params.templateLanguage,
+    config.waba_id,
   );
   if (resolvedTemplate.malformed) {
     throw new BroadcastError(
@@ -214,6 +227,7 @@ export async function createBroadcast(
       // Frozen per-recipient params (migration 038) — without them a
       // resume of this broadcast has no way to reconstruct {{1}}.
       p_template_params: deduped.map((r) => r.params),
+      p_whatsapp_config_id: whatsappConfigId,
     }
   );
   if (createErr || !createdRows || createdRows.length === 0) {
@@ -242,6 +256,7 @@ export async function createBroadcast(
     templateRow,
     planned,
     rejected,
+    whatsappConfigId,
   };
 }
 

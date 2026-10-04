@@ -54,6 +54,7 @@ export async function POST(request: Request) {
     }
 
     const to = typeof body.to === 'string' ? body.to.trim() : '';
+    const whatsappConfigId = typeof body.whatsapp_config_id === 'string' ? body.whatsapp_config_id : null;
     if (!to) {
       return fail('bad_request', "'to' is required", 400);
     }
@@ -102,7 +103,8 @@ export async function POST(request: Request) {
       ctx.supabase,
       ctx.accountId,
       to,
-      typeof body.name === 'string' ? body.name : null
+      typeof body.name === 'string' ? body.name : null,
+      whatsappConfigId,
     );
 
     const result = await sendMessageToConversation(

@@ -96,7 +96,7 @@ function metaFailure(err: unknown, step: MetaConnectStep, ctx: MetaErrorContext)
  *   { connected: false, reason: 'meta_api_error',   message: '...',
  *     meta: { code, subcode, fbtrace_id, step, field, message } }
  */
-export async function GET() {
+export async function GET(request: Request) {
   try {
     const supabase = await createClient()
 
@@ -121,11 +121,14 @@ export async function GET() {
       )
     }
 
-    const { data: config, error: configError } = await supabase
+    const configId = new URL(request.url).searchParams.get('config_id')
+    let configQuery = supabase
       .from('whatsapp_config')
       .select('phone_number_id, waba_id, access_token, status')
       .eq('account_id', accountId)
-      .maybeSingle()
+    if (configId) configQuery = configQuery.eq('id', configId)
+    else configQuery = configQuery.order('created_at', { ascending: true }).limit(1)
+    const { data: config, error: configError } = await configQuery.maybeSingle()
 
     if (configError) {
       console.error('Error fetching whatsapp_config:', configError)
@@ -267,7 +270,7 @@ export async function POST(request: Request) {
     }
 
     const body = await request.json()
-    const { phone_number_id, waba_id, access_token, verify_token, pin } = body
+    const { config_id, phone_number_id, waba_id, access_token, verify_token, pin } = body
 
     if (!access_token || !phone_number_id) {
       return NextResponse.json(
@@ -311,19 +314,13 @@ export async function POST(request: Request) {
       }
     }
 
-    // Reject if another account has already claimed this phone_number_id.
-    // wacrm is single-tenant-per-WhatsApp-number — letting two accounts
-    // bind the same number causes the webhook's `.single()` lookup to
-    // throw PGRST116 ("multiple rows"), silently dropping every
-    // inbound message. See issue #136. Post-multi-user we key on
-    // account_id (not user_id) since teammates inside the same account
-    // all share one config; the conflict is between accounts.
-    const { data: claimed, error: claimedError } = await supabaseAdmin()
+    // A phone_number_id is globally unique. Check it before calling
+    // Meta so duplicate connection attempts fail before external side effects.
+    const { data: claims, error: claimedError } = await supabaseAdmin()
       .from('whatsapp_config')
-      .select('account_id')
+      .select('id, account_id')
       .eq('phone_number_id', phone_number_id)
-      .neq('account_id', accountId)
-      .maybeSingle()
+      .limit(2)
 
     if (claimedError) {
       console.error('Error checking phone_number_id ownership:', claimedError)
@@ -333,12 +330,12 @@ export async function POST(request: Request) {
       )
     }
 
-    if (claimed) {
+    const otherClaim = (claims ?? []).find(
+      (row: { id: string; account_id: string }) => row.id !== config_id
+    )
+    if (otherClaim) {
       return NextResponse.json(
-        {
-          error:
-            'This WhatsApp phone number is already linked to another account on this instance. Each phone number can only be connected to one wacrm user.',
-        },
+        { error: 'This WhatsApp phone number is already linked to another connection on this instance.' },
         { status: 409 }
       )
     }
@@ -387,17 +384,33 @@ export async function POST(request: Request) {
       }
     }
 
-    // Look up any pre-existing row for this account. Two reasons: we need
-    // to know whether this number is already registered with Meta (so we
-    // can skip /register when the user didn't provide a PIN this time
-    // around), and we need the stored verify_token — the settings form
-    // never shows it, so a save that leaves the field blank must keep it
-    // rather than null it out.
-    const { data: existing } = await supabase
-      .from('whatsapp_config')
-      .select('id, registered_at, phone_number_id, verify_token')
-      .eq('account_id', accountId)
-      .maybeSingle()
+    // Resolve the row being edited. An explicit config_id identifies the
+    // connection to update. Without config_id, this is a new connection;
+    // never infer "edit" from the account having exactly one row because
+    // that would overwrite the first connection when adding a second number.
+    let existing: {
+      id: string
+      registered_at: string | null
+      phone_number_id: string
+      verify_token: string | null
+    } | null = null
+
+    if (config_id) {
+      const { data } = await supabase
+        .from('whatsapp_config')
+        .select('id, registered_at, phone_number_id, verify_token')
+        .eq('id', config_id)
+        .eq('account_id', accountId)
+        .maybeSingle()
+      existing = data
+
+      if (!existing) {
+        return NextResponse.json(
+          { error: 'WhatsApp connection not found for this account.' },
+          { status: 404 },
+        )
+      }
+    }
 
     // Encrypt sensitive tokens before storing
     let encryptedAccessToken: string
@@ -513,10 +526,13 @@ export async function POST(request: Request) {
       updated_at: new Date().toISOString(),
     }
 
+    let savedConfigId = existing?.id ?? null
+
     if (existing) {
       const { error: updateError } = await supabase
         .from('whatsapp_config')
         .update(baseRow)
+        .eq('id', existing.id)
         .eq('account_id', accountId)
 
       if (updateError) {
@@ -531,13 +547,15 @@ export async function POST(request: Request) {
       // (NOT NULL post-017, UNIQUE so duplicates trip the constraint
       // up-front), `user_id` is the audit column identifying which
       // member of the account saved the config.
-      const { error: insertError } = await supabase
+      const { data: insertedConfig, error: insertError } = await supabase
         .from('whatsapp_config')
         .insert({
           account_id: accountId,
           user_id: user.id,
           ...baseRow,
         })
+        .select('id')
+        .single()
 
       if (insertError) {
         console.error('Error inserting whatsapp_config:', insertError)
@@ -546,6 +564,7 @@ export async function POST(request: Request) {
           { status: 500 }
         )
       }
+      savedConfigId = insertedConfig?.id ?? null
     }
 
     if (registrationError) {
@@ -560,6 +579,7 @@ export async function POST(request: Request) {
         error: registrationError,
         meta: registrationMeta,
         phone_info: phoneInfo,
+        config_id: savedConfigId,
       })
     }
 
@@ -573,6 +593,7 @@ export async function POST(request: Request) {
       // rather than claiming the number is fully live.
       registration_skipped: registrationSkipped,
       phone_info: phoneInfo,
+      config_id: savedConfigId,
     })
   } catch (error) {
     console.error('Error in WhatsApp config POST:', error)
@@ -587,7 +608,7 @@ export async function POST(request: Request) {
  * Used by the "Reset Configuration" button to recover from a corrupted
  * encrypted token (mismatched ENCRYPTION_KEY across environments).
  */
-export async function DELETE() {
+export async function DELETE(request: Request) {
   try {
     const supabase = await createClient()
 
@@ -608,10 +629,31 @@ export async function DELETE() {
       )
     }
 
-    const { error: deleteError } = await supabase
+    const configId = new URL(request.url).searchParams.get('config_id')
+    let deleteQuery = supabase
       .from('whatsapp_config')
       .delete()
       .eq('account_id', accountId)
+
+    if (configId) {
+      deleteQuery = deleteQuery.eq('id', configId)
+    } else {
+      const { data: rows } = await supabase
+        .from('whatsapp_config')
+        .select('id')
+        .eq('account_id', accountId)
+        .order('created_at', { ascending: true })
+        .limit(2)
+      if ((rows ?? []).length > 1) {
+        return NextResponse.json(
+          { error: 'config_id is required when this account has multiple WhatsApp connections.' },
+          { status: 409 },
+        )
+      }
+      if (rows?.[0]?.id) deleteQuery = deleteQuery.eq('id', rows[0].id)
+    }
+
+    const { error: deleteError } = await deleteQuery
 
     if (deleteError) {
       console.error('Error deleting whatsapp_config:', deleteError)

@@ -77,15 +77,10 @@ function Donut({ data, currency }: { data: PipelineDonutData; currency: string }
   const cx = size / 2
   const cy = size / 2
 
-  // Small slices would render as slivers that disappear into stroke
-  // rounding. We give each stage a floor share purely for rendering,
-  // but keep the labels/legend honest with the actual totals.
+  // The ring must remain truthful. Tiny stages may be visually small,
+  // but their size must stay proportional to their actual value.
   const totalRaw = data.totalValue || 1
-  const minFrac = 0.02
-  const rawShares = data.stages.map((s) => s.totalValue / totalRaw)
-  const floored = rawShares.map((x) => Math.max(x, minFrac))
-  const floorSum = floored.reduce((a, b) => a + b, 0)
-  const shares = floored.map((x) => x / floorSum)
+  const shares = data.stages.map((s) => s.totalValue / totalRaw)
 
   // Build a cumulative-offset array, then map stages → arc paths. Using
   // a pre-computed offsets array avoids the Next 16 React Compiler's

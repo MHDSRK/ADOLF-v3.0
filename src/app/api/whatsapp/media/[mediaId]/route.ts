@@ -48,17 +48,46 @@ export async function GET(
       )
     }
 
-    // Fetch and decrypt WhatsApp config
+    // Resolve the WhatsApp connection from the message that owns this
+    // media id. Media IDs are not a safe account-wide credential key once
+    // multiple business numbers exist.
+    const { data: messageRow, error: messageError } = await supabase
+      .from('messages')
+      .select('conversation_id, conversations!inner(account_id, whatsapp_config_id)')
+      .eq('media_url', `/api/whatsapp/media/${mediaId}`)
+      .limit(1)
+      .maybeSingle()
+
+    if (messageError || !messageRow) {
+      return NextResponse.json(
+        { error: 'Media not found' },
+        { status: 404 },
+      )
+    }
+
+    const conversation = Array.isArray(messageRow.conversations)
+      ? messageRow.conversations[0]
+      : messageRow.conversations
+    const configId = conversation?.whatsapp_config_id as string | null | undefined
+
+    if (!configId || conversation?.account_id !== accountId) {
+      return NextResponse.json(
+        { error: 'WhatsApp connection for this media is unavailable' },
+        { status: 404 },
+      )
+    }
+
     const { data: config, error: configError } = await supabase
       .from('whatsapp_config')
-      .select('*')
+      .select('phone_number_id, access_token, status')
+      .eq('id', configId)
       .eq('account_id', accountId)
-      .single()
+      .maybeSingle()
 
-    if (configError || !config) {
+    if (configError || !config || config.status !== 'connected') {
       return NextResponse.json(
-        { error: 'WhatsApp not configured' },
-        { status: 400 }
+        { error: 'WhatsApp connection is unavailable' },
+        { status: 400 },
       )
     }
 

@@ -172,6 +172,10 @@ export function MessageThread({
   const { user } = useAuth();
   const { getPresence, getRow, now } = usePresence();
   const [loading, setLoading] = useState(false);
+  const [loadingOlder, setLoadingOlder] = useState(false);
+  const [hasOlderMessages, setHasOlderMessages] = useState(false);
+  const oldestMessageAtRef = useRef<string | null>(null);
+  const loadingOlderRef = useRef(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const [templateModalOpen, setTemplateModalOpen] = useState(false);
   const [profiles, setProfiles] = useState<Profile[]>([]);
@@ -304,14 +308,18 @@ export function MessageThread({
         .from("messages")
         .select("*")
         .eq("conversation_id", conversationId)
-        .order("created_at", { ascending: true });
+        .order("created_at", { ascending: false })
+        .limit(100);
 
       if (cancelled) return;
 
       if (error) {
         console.error("Failed to fetch messages:", error);
       } else {
-        onMessagesLoadedRef.current(data ?? []);
+        const rows = [...(data ?? [])].reverse();
+        oldestMessageAtRef.current = rows[0]?.created_at ?? null;
+        setHasOlderMessages((data?.length ?? 0) === 100);
+        onMessagesLoadedRef.current(rows);
       }
 
       if (!cancelled) setLoading(false);
@@ -325,6 +333,43 @@ export function MessageThread({
     // realtime is best-effort and any message events sent while the WS
     // was disconnected or throttled are otherwise lost.
   }, [conversationId, resyncToken]);
+
+  const loadOlderMessages = useCallback(async () => {
+    if (!conversationId || loadingOlder || !hasOlderMessages || !oldestMessageAtRef.current) {
+      return;
+    }
+
+    setLoadingOlder(true);
+    loadingOlderRef.current = true;
+    const supabase = createClient();
+    const before = oldestMessageAtRef.current;
+
+    const { data, error } = await supabase
+      .from("messages")
+      .select("*")
+      .eq("conversation_id", conversationId)
+      .lt("created_at", before)
+      .order("created_at", { ascending: false })
+      .limit(100);
+
+    if (error) {
+      console.error("Failed to load older messages:", error);
+      loadingOlderRef.current = false;
+      setLoadingOlder(false);
+      return;
+    }
+
+    const older = [...(data ?? [])].reverse();
+    if (older.length > 0) {
+      oldestMessageAtRef.current = older[0].created_at;
+      onMessagesLoadedRef.current([...older, ...messages]);
+    }
+    setHasOlderMessages((data?.length ?? 0) === 100);
+    requestAnimationFrame(() => {
+      loadingOlderRef.current = false;
+      setLoadingOlder(false);
+    });
+  }, [conversationId, loadingOlder, hasOlderMessages, messages]);
 
   // Reactions fetch — pulls the current state from the DB. Kept separate
   // from the channel subscription below so a `resyncToken` bump just
@@ -458,6 +503,7 @@ export function MessageThread({
 
   // Auto-scroll to bottom on new messages
   useEffect(() => {
+    if (loadingOlderRef.current) return;
     if (scrollRef.current) {
       const el = scrollRef.current;
       el.scrollTop = el.scrollHeight;
@@ -874,9 +920,6 @@ export function MessageThread({
         <h3 className="mt-4 text-sm font-medium text-muted-foreground">
           {t("selectConversation")}
         </h3>
-        <p className="mt-1 text-xs text-muted-foreground">
-          {t("selectConversationHint")}
-        </p>
       </div>
     );
   }
@@ -901,10 +944,10 @@ export function MessageThread({
     // clipped and the hover toolbar overlaps the Tags panel. Letting the
     // root shrink lets the bubbles' break-words / max-w caps apply.
     // Issue #257.
-    <div className={cn("flex min-w-0 flex-1 flex-col", DOODLE_BG_CLASSES)}>
+    <div className={cn("flex min-h-0 min-w-0 flex-1 flex-col", DOODLE_BG_CLASSES)}>
       {/* Header — solid card surface sits on top of the doodle so the
           name/avatar/dropdowns stay legible. */}
-      <div className="flex items-center justify-between gap-2 border-b border-border bg-card px-3 py-3 sm:px-4">
+      <div className="flex shrink-0 items-center justify-between gap-2 border-b border-border bg-card px-3 py-3 sm:px-4">
         <div className="flex min-w-0 items-center gap-2 sm:gap-3">
           {/* Back-to-list button — mobile only. Hidden on lg+ where the
               conversation list is always visible next to the thread. */}
@@ -1084,7 +1127,19 @@ export function MessageThread({
       </div>
 
       {/* Messages Area */}
-      <div ref={scrollRef} className="flex-1 overflow-y-auto px-4 py-4">
+      <div ref={scrollRef} className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-4">
+        {!loading && hasOlderMessages && (
+          <div className="mb-3 flex justify-center">
+            <button
+              type="button"
+              onClick={loadOlderMessages}
+              disabled={loadingOlder}
+              className="rounded-full border border-border bg-card px-3 py-1.5 text-xs font-medium text-muted-foreground hover:bg-muted hover:text-foreground disabled:opacity-60"
+            >
+              {loadingOlder ? t("loadingOlder") : t("loadOlder")}
+            </button>
+          </div>
+        )}
         {loading ? (
           <div className="flex items-center justify-center py-12">
             <div className="h-5 w-5 animate-spin rounded-full border-2 border-primary border-t-transparent" />
@@ -1092,9 +1147,6 @@ export function MessageThread({
         ) : messages.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-12">
             <p className="text-sm text-muted-foreground">{t("noMessagesYet")}</p>
-            <p className="text-xs text-muted-foreground">
-              {t("sendTemplateHint")}
-            </p>
           </div>
         ) : (
           <div className="space-y-4">
@@ -1163,7 +1215,7 @@ export function MessageThread({
       {/* AI auto-reply banner — take over an active bot, or resume it
           after a handoff. Renders nothing unless the account has
           auto-reply configured. */}
-      <AiThreadBanner
+      <div className="shrink-0"><AiThreadBanner
         conversationId={conversation.id}
         disabled={conversation.ai_autoreply_disabled ?? false}
         handoffSummary={conversation.ai_handoff_summary}
@@ -1174,10 +1226,10 @@ export function MessageThread({
             onAssignChange(conversation.id, patch.assigned_agent_id ?? null);
           }
         }}
-      />
+      /></div>
 
       {/* Composer */}
-      <MessageComposer
+      <div className="shrink-0"><MessageComposer
         conversationId={conversation.id}
         sessionExpired={sessionInfo.expired}
         onSend={handleSend}
@@ -1186,9 +1238,10 @@ export function MessageThread({
         onOpenTemplates={handleOpenTemplates}
         replyTo={replyTo}
         onClearReply={() => setReplyTo(null)}
-      />
+      /></div>
 
       <TemplatePicker
+        whatsappConfigId={conversation.whatsapp_config_id}
         open={templateModalOpen}
         onOpenChange={setTemplateModalOpen}
         onSelect={handleSendTemplate}

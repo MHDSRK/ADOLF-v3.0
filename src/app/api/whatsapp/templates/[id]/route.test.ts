@@ -22,6 +22,7 @@ const TEMPLATE = {
   name: 'order_update',
   status: 'APPROVED',
   meta_template_id: 'meta-1',
+  waba_id: 'WABA-1',
   language: 'en_US',
 }
 
@@ -119,7 +120,7 @@ function patchTemplate() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         name: 'order_update',
-        category: 'Marketing',
+        category: 'MARKETING',
         language: 'en_US',
         body_text: 'Rewritten by an unprivileged member',
       }),

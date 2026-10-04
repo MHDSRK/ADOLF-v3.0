@@ -6,6 +6,7 @@ on:
   push:
     branches: [main]
 
+# Validate every PR with the complete quality gate.
 # Cancel older CI runs for the same branch when a new commit arrives —
 # saves minutes when someone pushes a stack of fixes to one PR.
 concurrency:

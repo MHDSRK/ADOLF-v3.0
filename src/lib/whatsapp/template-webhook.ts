@@ -158,11 +158,12 @@ async function handleStatusUpdate(
     submission_error: null,
   }
 
-  const { data, error } = await supabase
+  let statusQuery = supabase
     .from('message_templates')
     .update(update)
     .eq('meta_template_id', metaTemplateId)
-    .select('id')
+  if (wabaId) statusQuery = statusQuery.eq('waba_id', wabaId)
+  const { data, error } = await statusQuery.select('id')
 
   if (error) {
     console.error(
@@ -181,11 +182,14 @@ async function handleStatusUpdate(
       wabaId,
       fields: update,
       retryUpdate: () =>
-        supabase
-          .from('message_templates')
-          .update(update)
-          .eq('meta_template_id', metaTemplateId)
-          .select('id'),
+        (() => {
+          let retry = supabase
+            .from('message_templates')
+            .update(update)
+            .eq('meta_template_id', metaTemplateId)
+          if (wabaId) retry = retry.eq('waba_id', wabaId)
+          return retry.select('id')
+        })(),
       supabase,
     })
     return
@@ -221,12 +225,14 @@ async function handleQualityUpdate(
       : null
 
   const update = { quality_score: score }
-  const runUpdate = () =>
-    supabase
+  const runUpdate = () => {
+    let query = supabase
       .from('message_templates')
       .update(update)
       .eq('meta_template_id', metaTemplateId)
-      .select('id')
+    if (wabaId) query = query.eq('waba_id', wabaId)
+    return query.select('id')
+  }
 
   const { data, error } = await runUpdate()
 
@@ -306,6 +312,7 @@ async function createStubForUnknownTemplate(p: StubParams): Promise<void> {
     .from('whatsapp_config')
     .select('account_id, user_id')
     .eq('waba_id', wabaId)
+    .limit(2)
 
   if (configError) {
     console.error(
@@ -315,14 +322,15 @@ async function createStubForUnknownTemplate(p: StubParams): Promise<void> {
     return
   }
   const rows = (configs ?? []) as { account_id: string; user_id: string }[]
-  if (rows.length !== 1) {
+  const accountRows = [...new Map(rows.map((row) => [row.account_id, row])).values()]
+  if (accountRows.length !== 1) {
     console.warn(
-      `[template-webhook] ${kind} for unknown template ${where} — ${rows.length === 0 ? 'no' : rows.length} whatsapp_config rows match that WABA id; not creating a stub. Run "Sync from Meta" for the owning account.`,
+      `[template-webhook] ${kind} for unknown template ${where} — ${accountRows.length === 0 ? 'no' : accountRows.length} account(s) match that WABA id; not creating a stub. Run "Sync from Meta" for the owning account.`,
     )
     return
   }
 
-  const config = rows[0]
+  const config = accountRows[0]
   // account_id is tenancy; user_id is the NOT NULL audit FK — the
   // config owner, same convention the webhook uses for inbound writes.
   // `category` and `status` fall back to their column defaults unless
@@ -330,6 +338,7 @@ async function createStubForUnknownTemplate(p: StubParams): Promise<void> {
   const stub = {
     account_id: config.account_id,
     user_id: config.user_id,
+    waba_id: wabaId,
     meta_template_id: metaTemplateId,
     name,
     language: p.language || DEFAULT_TEMPLATE_LANGUAGE,

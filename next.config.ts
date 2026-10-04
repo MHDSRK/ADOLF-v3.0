@@ -6,10 +6,9 @@ const withNextIntl = createNextIntlPlugin("./src/i18n/request.ts");
 /**
  * Baseline security headers applied to every response.
  *
- * CSP ships as `Content-Security-Policy-Report-Only` so the browser
- * surfaces violations in the console without blocking anything — once
- * we have confidence nothing legit trips it (two deploys, a pass on
- * every route), flip the key to `Content-Security-Policy` to enforce.
+ * CSP is enforced for deployed responses. Inline styles remain allowed
+ * because the app uses Tailwind style attributes; executable inline script
+ * and eval are not allowed.
  *
  * The rest of the headers are straight blocks, safe to enforce today:
  *   - HSTS: only meaningful on HTTPS (no-op on http://localhost).
@@ -42,7 +41,7 @@ const SECURITY_HEADERS = [
       // Next.js needs 'unsafe-inline' for its inline hydration script
       // and 'unsafe-eval' in dev + some production optimisations.
       // Nonce-based CSP is a later project.
-      "script-src 'self' 'unsafe-inline' 'unsafe-eval'",
+      "script-src 'self'",
       // Tailwind + inline style attributes on lots of components.
       "style-src 'self' 'unsafe-inline'",
       // Supabase public-bucket avatars, contact avatars (arbitrary
@@ -145,8 +144,7 @@ const nextConfig: NextConfig = {
         headers: [
           {
             key: "Cache-Control",
-            value:
-              "public, max-age=0, s-maxage=300, stale-while-revalidate=86400",
+            value: "private, no-store, max-age=0",
           },
         ],
       },

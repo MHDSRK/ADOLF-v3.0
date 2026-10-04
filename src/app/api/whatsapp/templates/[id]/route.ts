@@ -82,7 +82,7 @@ export async function PATCH(
     // meta_template_id and status — fetch explicitly.
     const { data: existing, error: lookupErr } = await supabase
       .from('message_templates')
-      .select('id, name, status, meta_template_id, language')
+      .select('id, name, status, meta_template_id, language, waba_id')
       .eq('id', id)
       .eq('account_id', accountId)
       .maybeSingle()
@@ -129,14 +129,24 @@ export async function PATCH(
     }
 
     if (!isDryRun()) {
+      if (!existing.waba_id) {
+        return NextResponse.json(
+          { error: 'This template has no WABA catalog assigned.' },
+          { status: 400 },
+        )
+      }
       const { data: config, error: configError } = await supabase
         .from('whatsapp_config')
         .select('*')
+        .eq('waba_id', existing.waba_id)
         .eq('account_id', accountId)
-        .single()
+        .eq('status', 'connected')
+        .order('created_at', { ascending: true })
+        .limit(1)
+        .maybeSingle()
       if (configError || !config) {
         return NextResponse.json(
-          { error: 'WhatsApp not configured.' },
+          { error: 'WhatsApp connection not found or disconnected.' },
           { status: 400 },
         )
       }
@@ -245,7 +255,7 @@ export async function DELETE(
 
     const { data: existing, error: lookupErr } = await supabase
       .from('message_templates')
-      .select('id, name, meta_template_id')
+      .select('id, name, meta_template_id, waba_id')
       .eq('id', id)
       .eq('account_id', accountId)
       .maybeSingle()
@@ -254,11 +264,21 @@ export async function DELETE(
     }
 
     if (existing.meta_template_id && !isDryRun()) {
+      if (!existing.waba_id) {
+        return NextResponse.json(
+          { error: 'This template has no WABA catalog assigned.' },
+          { status: 400 },
+        )
+      }
       const { data: config, error: configError } = await supabase
         .from('whatsapp_config')
         .select('*')
+        .eq('waba_id', existing.waba_id)
         .eq('account_id', accountId)
-        .single()
+        .eq('status', 'connected')
+        .order('created_at', { ascending: true })
+        .limit(1)
+        .maybeSingle()
       if (configError || !config || !config.waba_id) {
         return NextResponse.json(
           { error: 'WhatsApp not configured — cannot delete on Meta.' },

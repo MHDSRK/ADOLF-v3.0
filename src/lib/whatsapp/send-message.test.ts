@@ -212,11 +212,13 @@ function sendPathDb(
   const conversation = {
     id: 'cv-1',
     contact,
+    whatsapp_config_id: 'cfg-1',
   };
   const config = {
     id: 'cfg-1',
     phone_number_id: 'pn-1',
     access_token: 'token',
+    status: 'connected',
   };
 
   return {
@@ -224,6 +226,8 @@ function sendPathDb(
       const builder: Record<string, unknown> = {
         select: () => builder,
         eq: () => builder,
+        order: () => builder,
+        limit: () => builder,
         insert: (row: Record<string, unknown>) => {
           if (table === 'messages') captured.message = row;
           return builder;
@@ -232,7 +236,11 @@ function sendPathDb(
           if (table === 'conversations') captured.conversation = row;
           return builder;
         },
-        maybeSingle: async () => ({ data: null, error: null }),
+        maybeSingle: async () => {
+          if (table === 'conversations') return { data: conversation, error: null };
+          if (table === 'whatsapp_config') return { data: config, error: null };
+          return { data: null, error: null };
+        },
         single: async () => {
           if (table === 'conversations') {
             return { data: conversation, error: null };

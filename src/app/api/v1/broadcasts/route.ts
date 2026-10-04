@@ -57,6 +57,8 @@ export async function POST(request: Request) {
 
     const templateName =
       typeof body.template_name === 'string' ? body.template_name : '';
+    const whatsappConfigId =
+      typeof body.whatsapp_config_id === 'string' ? body.whatsapp_config_id : '';
     const recipients = Array.isArray(body.recipients) ? body.recipients : [];
 
     const auditUserId = await resolveAuditUserId(ctx.supabase, ctx.accountId);
@@ -68,6 +70,7 @@ export async function POST(request: Request) {
         typeof body.template_language === 'string'
           ? body.template_language
           : null,
+      whatsappConfigId,
       recipients: recipients.map((r) => ({
         to: typeof r?.to === 'string' ? r.to : '',
         params: Array.isArray(r?.params) ? r.params : undefined,

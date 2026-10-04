@@ -24,6 +24,7 @@ describe('createBroadcast validation', () => {
     await expect(
       createBroadcast(db, 'acc', 'user', {
         templateName: '',
+        whatsappConfigId: 'cfg-1',
         recipients: [{ to: '+14155550123' }],
       })
     ).rejects.toMatchObject({ code: 'bad_request', status: 400 });
@@ -33,6 +34,7 @@ describe('createBroadcast validation', () => {
     await expect(
       createBroadcast(db, 'acc', 'user', {
         templateName: 'promo',
+        whatsappConfigId: 'cfg-1',
         recipients: [],
       })
     ).rejects.toBeInstanceOf(BroadcastError);
@@ -43,7 +45,7 @@ describe('createBroadcast validation', () => {
       to: '+14155550123',
     }));
     await expect(
-      createBroadcast(db, 'acc', 'user', { templateName: 'promo', recipients })
+      createBroadcast(db, 'acc', 'user', { templateName: 'promo', whatsappConfigId: 'cfg-1', recipients })
     ).rejects.toMatchObject({ status: 400 });
   });
 });
@@ -61,17 +63,23 @@ function makeDb(rpcResult: { data: unknown; error: unknown }) {
   const database = {
     from(table: string) {
       if (table === 'whatsapp_config') {
-        return {
-          select: () => ({
-            eq: () => ({
-              single: () =>
-                Promise.resolve({
-                  data: { phone_number_id: 'pn-1', access_token: 'enc' },
-                  error: null,
-                }),
+        const chain: Record<string, unknown> = {
+          select: () => chain,
+          eq: () => chain,
+          single: () =>
+            Promise.resolve({
+              data: {
+                id: 'cfg-1',
+                account_id: 'acc',
+                phone_number_id: 'pn-1',
+                access_token: 'enc',
+                status: 'connected',
+                waba_id: 'waba-1',
+              },
+              error: null,
             }),
-          }),
         };
+        return chain;
       }
       if (table === 'message_templates') {
         const chain: Record<string, unknown> = {
@@ -111,6 +119,7 @@ describe('createBroadcast recipient validation (#586)', () => {
 
     const plan = await createBroadcast(db, 'acc', 'user', {
       templateName: 'promo',
+      whatsappConfigId: 'cfg-1',
       recipients: [
         { to: '4155551212' }, // US national → Meta would read +41 (Switzerland)
         { to: '14155550123' }, // country code but no + — indistinguishable
@@ -129,6 +138,7 @@ describe('createBroadcast recipient validation (#586)', () => {
     await expect(
       createBroadcast(db, 'acc', 'user', {
         templateName: 'promo',
+        whatsappConfigId: 'cfg-1',
         recipients: [{ to: '4155551212' }],
       })
     ).rejects.toMatchObject({ code: 'bad_request', status: 400 });
@@ -145,6 +155,7 @@ describe('createBroadcast atomicity (#370)', () => {
 
     const plan = await createBroadcast(db, 'acc', 'user', {
       templateName: 'promo',
+      whatsappConfigId: 'cfg-1',
       recipients: [{ to: '+14155550123' }],
     });
 
@@ -166,6 +177,7 @@ describe('createBroadcast atomicity (#370)', () => {
     await expect(
       createBroadcast(db, 'acc', 'user', {
         templateName: 'promo',
+        whatsappConfigId: 'cfg-1',
         recipients: [{ to: '+14155550123' }],
       })
     ).rejects.toBeInstanceOf(BroadcastError);

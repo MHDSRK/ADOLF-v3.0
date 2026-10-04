@@ -168,9 +168,10 @@ const BROADCAST = {
   id: 'bc-1',
   template_name: 'order_update',
   template_language: 'en_US',
+  whatsapp_config_id: 'cfg-1',
 };
 
-const CONFIG = { phone_number_id: 'pn-1', access_token: 'tok' };
+const CONFIG = { id: 'cfg-1', phone_number_id: 'pn-1', access_token: 'tok', status: 'connected' };
 
 function recipient(
   id: string,

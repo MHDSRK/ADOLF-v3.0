@@ -14,7 +14,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { MessageSquare, CheckCircle, ArrowLeft } from "lucide-react";
+import { CheckCircle, ArrowLeft } from "lucide-react";
 
 export default function ForgotPasswordPage() {
   const t = useTranslations("ForgotPasswordPage");
@@ -22,12 +22,13 @@ export default function ForgotPasswordPage() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
-  const supabase = createClient();
 
   const handleReset = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
     setLoading(true);
+
+    const supabase = createClient();
 
     // The emailed link returns to /auth/callback, which exchanges it
     // for a recovery session and forwards to /reset-password (issue
@@ -88,7 +89,7 @@ export default function ForgotPasswordPage() {
       <Card className="w-full max-w-md border-border bg-card">
         <CardHeader className="items-center text-center">
           <div className="mb-2 flex h-12 w-12 items-center justify-center rounded-xl bg-primary/10">
-            <MessageSquare className="h-6 w-6 text-primary" />
+            <img src="/adolf-v3-mark.svg" alt="" className="h-9 w-9 object-contain" />
           </div>
           <CardTitle className="text-xl text-foreground">{t("title")}</CardTitle>
           <CardDescription className="text-muted-foreground">

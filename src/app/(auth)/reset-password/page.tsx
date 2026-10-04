@@ -35,7 +35,6 @@ type Status = "checking" | "ready" | "expired" | "done";
 
 export default function ResetPasswordPage() {
   const t = useTranslations("ResetPasswordPage");
-  const supabase = createClient();
 
   const [status, setStatus] = useState<Status>("checking");
   const [password, setPassword] = useState("");
@@ -45,15 +44,16 @@ export default function ResetPasswordPage() {
 
   useEffect(() => {
     let cancelled = false;
-    // The callback wrote the session cookies server-side; the browser
-    // client reads them here. No user → the link didn't yield a session.
+    // Create the browser client only after mount so prerendering does not
+    // require Supabase environment variables during the build.
+    const supabase = createClient();
     supabase.auth.getUser().then(({ data: { user } }) => {
       if (!cancelled) setStatus(user ? "ready" : "expired");
     });
     return () => {
       cancelled = true;
     };
-  }, [supabase]);
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -70,6 +70,7 @@ export default function ResetPasswordPage() {
     }
 
     setSaving(true);
+    const supabase = createClient();
     const { error } = await supabase.auth.updateUser({ password });
     setSaving(false);
 
@@ -150,7 +151,7 @@ export default function ResetPasswordPage() {
                 // fresh top-level request, which a soft router.push
                 // can race (issue #365).
                 // eslint-disable-next-line @next/next/no-location-assign-relative-destination -- deliberate full reload so the auth cookies reach the middleware
-                window.location.href = "/dashboard";
+                window.location.href = "/inbox";
               }}
             >
               {t("continueToDashboard")}

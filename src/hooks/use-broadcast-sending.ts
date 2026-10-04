@@ -51,6 +51,7 @@ interface BroadcastPayload {
    * falls back to the template's stored URL only when this is empty.
    */
   headerMediaUrl?: string;
+  whatsappConfigId: string;
 }
 
 interface UseBroadcastSendingReturn {
@@ -515,6 +516,7 @@ export function useBroadcastSending(): UseBroadcastSendingReturn {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({
+                whatsapp_config_id: payload.whatsappConfigId,
                 recipients: apiRecipients,
                 template_name: payload.template.name,
                 template_language: payload.template.language ?? 'en_US',

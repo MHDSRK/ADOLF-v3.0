@@ -81,6 +81,8 @@ export function WhatsAppConfig() {
   const [testing, setTesting] = useState(false);
   const [resetting, setResetting] = useState(false);
   const [showToken, setShowToken] = useState(false);
+  const [configs, setConfigs] = useState<WhatsAppConfigType[]>([]);
+  const [selectedConfigId, setSelectedConfigId] = useState<string | null>(null);
   const [config, setConfig] = useState<WhatsAppConfigType | null>(null);
   const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>('unknown');
   const [resetReason, setResetReason] = useState<ResetReason>(null);
@@ -140,41 +142,29 @@ export function WhatsAppConfig() {
       ? `${window.location.origin}/api/whatsapp/webhook`
       : '';
 
-  const fetchConfig = useCallback(async (acctId: string) => {
+  const fetchConfig = useCallback(async (acctId: string, preferredConfigId?: string | null) => {
     setLoading(true);
     try {
-      // Load form values from Supabase (shows what's in DB).
-      // Switched from `user_id` (which would only match the row's
-      // original author) to `account_id` so every member of the
-      // account sees the same saved configuration. UNIQUE(account_id)
-      // on the table guarantees the .maybeSingle() return type
-      // remains accurate.
-      const { data, error } = await supabase
+      const { data: rows, error } = await supabase
         .from('whatsapp_config')
         .select('*')
         .eq('account_id', acctId)
-        .maybeSingle();
+        .order('created_at', { ascending: true });
 
       if (error) {
-        console.error('Failed to load config row:', error);
+        console.error('Failed to load WhatsApp config rows:', error);
       }
 
-      if (data) {
-        setConfig(data);
-        setPhoneNumberId(data.phone_number_id || '');
-        setWabaId(data.waba_id || '');
-        setAccessToken(MASKED_TOKEN);
-        // Same treatment as the access token: the row carries the encrypted
-        // value, which is enough to know one exists. Show a mask instead of
-        // an empty box so nobody concludes the token was never saved.
-        setVerifyToken(data.verify_token ? MASKED_TOKEN : '');
-        setVerifyEdited(false);
-        setPin('');
-        setTokenEdited(false);
-        // Undefined on a row read before migration 039 — treat that as
-        // on, matching the webhook's own default.
-        setMirrorMedia(data.mirror_inbound_media !== false);
-      } else {
+      const available = (rows ?? []) as WhatsAppConfigType[];
+      setConfigs(available);
+
+      const selected =
+        available.find((row) => row.id === (preferredConfigId ?? selectedConfigId)) ??
+        available[0] ??
+        null;
+
+      if (!selected) {
+        setSelectedConfigId(null);
         setConfig(null);
         setPhoneNumberId('');
         setWabaId('');
@@ -184,39 +174,54 @@ export function WhatsAppConfig() {
         setTokenEdited(false);
         setVerifyEdited(false);
         setMirrorMedia(true);
-      }
-      // Clear any stale probe result when reloading the row.
-      setRegistrationProbe(null);
-
-      // Then verify health via the API (decrypts token + pings Meta)
-      if (data) {
-        try {
-          const res = await fetch('/api/whatsapp/config', { method: 'GET' });
-          const payload = await res.json();
-
-          if (payload.connected) {
-            setConnectionStatus('connected');
-            setResetReason(null);
-            setStatusMessage('');
-            setStatusMeta(null);
-            setWabaSubscription(payload.waba_subscription ?? null);
-          } else {
-            setConnectionStatus('disconnected');
-            setResetReason(payload.needs_reset ? 'token_corrupted' : payload.reason === 'meta_api_error' ? 'meta_api_error' : null);
-            setStatusMessage(payload.message || '');
-            setStatusMeta(payload.meta ?? null);
-            setWabaSubscription(null);
-          }
-        } catch (err) {
-          console.error('Health check failed:', err);
-          setConnectionStatus('disconnected');
-        }
-      } else {
+        setRegistrationProbe(null);
         setConnectionStatus('disconnected');
         setResetReason(null);
         setStatusMessage('');
         setStatusMeta(null);
         setWabaSubscription(null);
+        return;
+      }
+
+      setSelectedConfigId(selected.id);
+      setConfig(selected);
+      setPhoneNumberId(selected.phone_number_id || '');
+      setWabaId(selected.waba_id || '');
+      setAccessToken(MASKED_TOKEN);
+      setVerifyToken(selected.verify_token ? MASKED_TOKEN : '');
+      setVerifyEdited(false);
+      setPin('');
+      setTokenEdited(false);
+      setMirrorMedia(selected.mirror_inbound_media !== false);
+      setRegistrationProbe(null);
+
+      try {
+        const query = new URLSearchParams({ config_id: selected.id });
+        const res = await fetch(`/api/whatsapp/config?${query.toString()}`, { method: 'GET' });
+        const payload = await res.json();
+
+        if (payload.connected) {
+          setConnectionStatus('connected');
+          setResetReason(null);
+          setStatusMessage('');
+          setStatusMeta(null);
+          setWabaSubscription(payload.waba_subscription ?? null);
+        } else {
+          setConnectionStatus('disconnected');
+          setResetReason(
+            payload.needs_reset
+              ? 'token_corrupted'
+              : payload.reason === 'meta_api_error'
+                ? 'meta_api_error'
+                : null,
+          );
+          setStatusMessage(payload.message || '');
+          setStatusMeta(payload.meta ?? null);
+          setWabaSubscription(null);
+        }
+      } catch (err) {
+        console.error('Health check failed:', err);
+        setConnectionStatus('disconnected');
       }
     } catch (err) {
       console.error('fetchConfig error:', err);
@@ -224,7 +229,7 @@ export function WhatsAppConfig() {
     } finally {
       setLoading(false);
     }
-  }, [supabase, t]);
+  }, [supabase, t, selectedConfigId]);
 
   useEffect(() => {
     // Need both the auth session (`!authLoading`) AND the profile
@@ -254,6 +259,7 @@ export function WhatsAppConfig() {
       const { error } = await supabase
         .from('whatsapp_config')
         .update({ mirror_inbound_media: next })
+        .eq('id', config.id)
         .eq('account_id', accountId);
       if (error) throw new Error(error.message);
       setConfig({ ...config, mirror_inbound_media: next });
@@ -292,6 +298,7 @@ export function WhatsAppConfig() {
       // and writing direct to Supabase stores the token in plaintext,
       // which then fails decryption on every subsequent health check.
       const payload: Record<string, unknown> = {
+        ...(config?.id ? { config_id: config.id } : {}),
         phone_number_id: phoneNumberId.trim(),
         waba_id: wabaId.trim() || null,
         // Only sent when the user actually typed one. Left out otherwise
@@ -379,7 +386,7 @@ export function WhatsAppConfig() {
         setPin('');
       }
 
-      if (accountId) await fetchConfig(accountId);
+      if (accountId) await fetchConfig(accountId, data.config_id ?? config?.id ?? null);
     } catch (err) {
       console.error('Save error:', err);
       toast.error(t('saveFailed'));
@@ -391,7 +398,8 @@ export function WhatsAppConfig() {
   async function handleTestConnection() {
     try {
       setTesting(true);
-      const res = await fetch('/api/whatsapp/config', { method: 'GET' });
+      const query = config?.id ? `?config_id=${encodeURIComponent(config.id)}` : '';
+      const res = await fetch(`/api/whatsapp/config${query}`, { method: 'GET' });
       const payload = await res.json();
 
       if (payload.connected) {
@@ -426,7 +434,8 @@ export function WhatsAppConfig() {
     setVerifyingRegistration(true);
     setRegistrationProbe(null);
     try {
-      const res = await fetch('/api/whatsapp/config/verify-registration', {
+      const query = config?.id ? `?config_id=${encodeURIComponent(config.id)}` : '';
+      const res = await fetch(`/api/whatsapp/config/verify-registration${query}`, {
         method: 'GET',
       });
       const data = (await res.json()) as RegistrationProbe;
@@ -455,7 +464,8 @@ export function WhatsAppConfig() {
 
     try {
       setResetting(true);
-      const res = await fetch('/api/whatsapp/config', { method: 'DELETE' });
+      const query = config?.id ? `?config_id=${encodeURIComponent(config.id)}` : '';
+      const res = await fetch(`/api/whatsapp/config${query}`, { method: 'DELETE' });
       const data = await res.json();
 
       if (!res.ok) {
@@ -464,9 +474,15 @@ export function WhatsAppConfig() {
       }
 
       toast.success(t('resetDone'));
-      setConfig(null);
-      setPhoneNumberId('');
-      setWabaId('');
+      if (accountId) {
+        await fetchConfig(accountId, null);
+      } else {
+        setConfigs([]);
+        setSelectedConfigId(null);
+        setConfig(null);
+        setPhoneNumberId('');
+        setWabaId('');
+      }
       setAccessToken('');
       setVerifyToken('');
       setTokenEdited(false);
@@ -545,6 +561,67 @@ export function WhatsAppConfig() {
         title={t("title")}
         description={t("description")}
       />
+      <Card className="mb-6">
+        <CardHeader>
+          <CardTitle>WhatsApp connections</CardTitle>
+          <CardDescription>
+            Connect multiple Meta WhatsApp numbers to the same account. Replies always use the number that owns the conversation.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          {configs.map((item) => (
+            <button
+              key={item.id}
+              type="button"
+              onClick={() => accountId && fetchConfig(accountId, item.id)}
+              className={
+                'w-full rounded-lg border p-3 text-left transition ' +
+                (item.id === selectedConfigId
+                  ? 'border-primary bg-primary/5'
+                  : 'border-border hover:bg-muted/40')
+              }
+            >
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <div className="font-medium">{item.phone_number_id}</div>
+                  <div className="text-xs text-muted-foreground">
+                    WABA: {item.waba_id || 'Not set'}
+                  </div>
+                </div>
+                <span className="text-xs">
+                  {item.status === 'connected' ? 'Connected' : 'Disconnected'}
+                </span>
+              </div>
+            </button>
+          ))}
+          {canEditSettings && (
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => {
+                setSelectedConfigId(null);
+                setConfig(null);
+                setPhoneNumberId('');
+                setWabaId('');
+                setAccessToken('');
+                setVerifyToken('');
+                setPin('');
+                setTokenEdited(false);
+                setVerifyEdited(false);
+                setMirrorMedia(true);
+                setConnectionStatus('disconnected');
+                setResetReason(null);
+                setStatusMessage('');
+                setStatusMeta(null);
+                setWabaSubscription(null);
+                setRegistrationProbe(null);
+              }}
+            >
+              Add WhatsApp number
+            </Button>
+          )}
+        </CardContent>
+      </Card>
       <div className="grid gap-6 lg:grid-cols-[1fr_380px]">
       {/* Main config form */}
       <div className="space-y-6">

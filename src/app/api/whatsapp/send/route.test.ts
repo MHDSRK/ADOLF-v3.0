@@ -57,6 +57,7 @@ function makeSupabaseMock() {
               account_id: 'acct-1',
               phone_number_id: 'PNID-1',
               access_token: 'enc-token',
+              status: 'connected',
             },
             error: null,
           }
@@ -170,6 +171,7 @@ function postContactTemplate(overrides: Record<string, unknown> = {}) {
       body: JSON.stringify({
         contact_id: 'contact-1',
         message_type: 'template',
+        whatsapp_config_id: 'cfg-1',
         template_name: 'order_update',
         template_language: 'en_US',
         template_message_params: { body: ['Acme', '#1234'] },
@@ -236,6 +238,7 @@ describe('POST /api/whatsapp/send — contact_id template path', () => {
       id: 'conv-existing',
       account_id: 'acct-1',
       contact_id: 'contact-1',
+      whatsapp_config_id: 'cfg-1',
       contact: CONTACT,
     }
 

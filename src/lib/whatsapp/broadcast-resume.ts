@@ -146,7 +146,7 @@ export async function planBroadcastResume(
 ): Promise<ResumePlan> {
   const { data: broadcast, error: bcError } = await db
     .from('broadcasts')
-    .select('id, template_name, template_language')
+    .select('id, template_name, template_language, whatsapp_config_id')
     .eq('id', broadcastId)
     .eq('account_id', accountId)
     .maybeSingle();
@@ -205,15 +205,25 @@ export async function planBroadcastResume(
     );
   }
 
+  if (!broadcast.whatsapp_config_id) {
+    throw new BroadcastError(
+      'whatsapp_not_configured',
+      'This broadcast has no WhatsApp connection assigned. Recreate it after selecting a sending number.',
+      400,
+    );
+  }
+
   const { data: config, error: configError } = await db
     .from('whatsapp_config')
     .select('*')
+    .eq('id', broadcast.whatsapp_config_id)
     .eq('account_id', accountId)
+    .eq('status', 'connected')
     .single();
   if (configError || !config) {
     throw new BroadcastError(
       'whatsapp_not_configured',
-      'WhatsApp not configured. Please set up your WhatsApp integration first.',
+      'The WhatsApp connection used by this broadcast is disconnected or missing.',
       400
     );
   }
@@ -222,7 +232,8 @@ export async function planBroadcastResume(
     db,
     accountId,
     broadcast.template_name,
-    broadcast.template_language
+    broadcast.template_language,
+    config.waba_id,
   );
   if (resolvedTemplate.malformed) {
     throw new BroadcastError(
@@ -247,6 +258,7 @@ export async function planBroadcastResume(
         : [],
     })),
     rejected: 0,
+    whatsappConfigId: broadcast.whatsapp_config_id,
   };
 
   return { plan, remaining, unsendable: unsendable.length };
