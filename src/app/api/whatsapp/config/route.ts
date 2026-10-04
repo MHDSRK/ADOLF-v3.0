@@ -531,6 +531,8 @@ export async function POST(request: Request) {
       updated_at: new Date().toISOString(),
     }
 
+    let savedConfigId = existing?.id ?? null
+
     if (existing) {
       const { error: updateError } = await supabase
         .from('whatsapp_config')
@@ -557,6 +559,8 @@ export async function POST(request: Request) {
           user_id: user.id,
           ...baseRow,
         })
+        .select('id')
+        .single()
 
       if (insertError) {
         console.error('Error inserting whatsapp_config:', insertError)
@@ -565,6 +569,7 @@ export async function POST(request: Request) {
           { status: 500 }
         )
       }
+      savedConfigId = insertedConfig?.id ?? null
     }
 
     if (registrationError) {
@@ -579,6 +584,7 @@ export async function POST(request: Request) {
         error: registrationError,
         meta: registrationMeta,
         phone_info: phoneInfo,
+        config_id: savedConfigId,
       })
     }
 
@@ -592,6 +598,7 @@ export async function POST(request: Request) {
       // rather than claiming the number is fully live.
       registration_skipped: registrationSkipped,
       phone_info: phoneInfo,
+      config_id: savedConfigId,
     })
   } catch (error) {
     console.error('Error in WhatsApp config POST:', error)
