@@ -70,6 +70,8 @@ export function ContactDetailView({
   // find-or-creates the conversation, so no inbound message is required.
   const [templatePickerOpen, setTemplatePickerOpen] = useState(false);
   const [sendingTemplate, setSendingTemplate] = useState(false);
+  const [whatsappConfigs, setWhatsappConfigs] = useState<{ id: string; phone_number_id: string; status: string }[]>([]);
+  const [whatsappConfigId, setWhatsappConfigId] = useState('');
 
   // Details tab
   const [editName, setEditName] = useState('');
@@ -181,6 +183,21 @@ export function ContactDetailView({
     setDeals((data ?? []) as Deal[]);
     setLoadingDeals(false);
   }, [contactId, supabase]);
+
+  useEffect(() => {
+    if (!open || !accountId) return;
+    void supabase
+      .from('whatsapp_config')
+      .select('id, phone_number_id, status')
+      .eq('account_id', accountId)
+      .order('created_at', { ascending: true })
+      .then(({ data }) => {
+        const rows = data ?? [];
+        setWhatsappConfigs(rows);
+        const connected = rows.filter((row) => row.status === 'connected');
+        setWhatsappConfigId((current) => current && connected.some((row) => row.id === current) ? current : connected.length === 1 ? connected[0].id : '');
+      });
+  }, [open, accountId, supabase]);
 
   useEffect(() => {
     if (open && contactId) {
@@ -341,6 +358,10 @@ export function ContactDetailView({
     values: TemplateSendValues,
   ) {
     if (!contactId) return;
+    if (!whatsappConfigId) {
+      toast.error('Select the WhatsApp number to send from.');
+      return;
+    }
     setSendingTemplate(true);
     try {
       const res = await fetch('/api/whatsapp/send', {
@@ -350,6 +371,7 @@ export function ContactDetailView({
           // No conversation_id — the route find-or-creates one for this
           // contact, mirroring the inbox template-send payload otherwise.
           contact_id: contactId,
+          whatsapp_config_id: whatsappConfigId,
           message_type: 'template',
           template_name: template.name,
           template_language: template.language,
@@ -444,11 +466,34 @@ export function ContactDetailView({
                   </div>
                 </div>
               </div>
-              <div className="mt-3">
+              <div className="mt-3 space-y-2">
+                {whatsappConfigs.filter((config) => config.status === 'connected').length > 1 && (
+                  <select
+                    value={whatsappConfigId}
+                    onChange={(event) => setWhatsappConfigId(event.target.value)}
+                    className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                    disabled={sendingTemplate}
+                  >
+                    <option value="">Select WhatsApp number</option>
+                    {whatsappConfigs
+                      .filter((config) => config.status === 'connected')
+                      .map((config) => (
+                        <option key={config.id} value={config.id}>
+                          {config.phone_number_id}
+                        </option>
+                      ))}
+                  </select>
+                )}
                 <Button
                   size="sm"
-                  onClick={() => setTemplatePickerOpen(true)}
-                  disabled={sendingTemplate}
+                  onClick={() => {
+                    if (!whatsappConfigId) {
+                      toast.error('Select the WhatsApp number to send from.');
+                      return;
+                    }
+                    setTemplatePickerOpen(true);
+                  }}
+                  disabled={sendingTemplate || whatsappConfigs.filter((config) => config.status === 'connected').length === 0}
                   className="bg-primary text-primary-foreground hover:bg-primary/90"
                 >
                   {sendingTemplate ? (
