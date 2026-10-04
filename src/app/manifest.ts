@@ -7,7 +7,7 @@ export default function manifest(): MetadataRoute.Manifest {
     description: "Personal WhatsApp CRM",
     start_url: "/inbox",
     display: "standalone",
-    background_color: "#020617",
+    background_color: "#050506",
     theme_color: "#020617",
     icons: [
       { src: "/icon.svg", sizes: "1024x1024", type: "image/svg+xml", purpose: "any maskable" },
