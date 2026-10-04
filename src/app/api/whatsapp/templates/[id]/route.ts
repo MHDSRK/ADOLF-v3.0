@@ -82,7 +82,7 @@ export async function PATCH(
     // meta_template_id and status — fetch explicitly.
     const { data: existing, error: lookupErr } = await supabase
       .from('message_templates')
-      .select('id, name, status, meta_template_id, language')
+      .select('id, name, status, meta_template_id, language, whatsapp_config_id')
       .eq('id', id)
       .eq('account_id', accountId)
       .maybeSingle()
@@ -129,14 +129,22 @@ export async function PATCH(
     }
 
     if (!isDryRun()) {
+      if (!existing.whatsapp_config_id) {
+        return NextResponse.json(
+          { error: 'This template has no WhatsApp connection assigned.' },
+          { status: 400 },
+        )
+      }
       const { data: config, error: configError } = await supabase
         .from('whatsapp_config')
         .select('*')
+        .eq('id', existing.whatsapp_config_id)
         .eq('account_id', accountId)
-        .single()
+        .eq('status', 'connected')
+        .maybeSingle()
       if (configError || !config) {
         return NextResponse.json(
-          { error: 'WhatsApp not configured.' },
+          { error: 'WhatsApp connection not found or disconnected.' },
           { status: 400 },
         )
       }
@@ -254,11 +262,19 @@ export async function DELETE(
     }
 
     if (existing.meta_template_id && !isDryRun()) {
+      if (!existing.whatsapp_config_id) {
+        return NextResponse.json(
+          { error: 'This template has no WhatsApp connection assigned.' },
+          { status: 400 },
+        )
+      }
       const { data: config, error: configError } = await supabase
         .from('whatsapp_config')
         .select('*')
+        .eq('id', existing.whatsapp_config_id)
         .eq('account_id', accountId)
-        .single()
+        .eq('status', 'connected')
+        .maybeSingle()
       if (configError || !config || !config.waba_id) {
         return NextResponse.json(
           { error: 'WhatsApp not configured — cannot delete on Meta.' },
