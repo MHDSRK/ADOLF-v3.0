@@ -396,7 +396,7 @@ export async function sendMessageToConversation(
         return result.messageId;
       }
       const result = await sendInteractiveList({
-        phoneNumberId: config.phone_number_id,
+        phoneNumberId,
         accessToken,
         to: phone,
         bodyText: p.body,
