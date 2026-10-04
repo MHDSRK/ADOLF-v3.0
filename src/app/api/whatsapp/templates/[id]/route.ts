@@ -82,7 +82,7 @@ export async function PATCH(
     // meta_template_id and status — fetch explicitly.
     const { data: existing, error: lookupErr } = await supabase
       .from('message_templates')
-      .select('id, name, status, meta_template_id, language, whatsapp_config_id')
+      .select('id, name, status, meta_template_id, language, waba_id')
       .eq('id', id)
       .eq('account_id', accountId)
       .maybeSingle()
@@ -129,18 +129,20 @@ export async function PATCH(
     }
 
     if (!isDryRun()) {
-      if (!existing.whatsapp_config_id) {
+      if (!existing.waba_id) {
         return NextResponse.json(
-          { error: 'This template has no WhatsApp connection assigned.' },
+          { error: 'This template has no WABA catalog assigned.' },
           { status: 400 },
         )
       }
       const { data: config, error: configError } = await supabase
         .from('whatsapp_config')
         .select('*')
-        .eq('id', existing.whatsapp_config_id)
+        .eq('waba_id', existing.waba_id)
         .eq('account_id', accountId)
         .eq('status', 'connected')
+        .order('created_at', { ascending: true })
+        .limit(1)
         .maybeSingle()
       if (configError || !config) {
         return NextResponse.json(
@@ -262,18 +264,20 @@ export async function DELETE(
     }
 
     if (existing.meta_template_id && !isDryRun()) {
-      if (!existing.whatsapp_config_id) {
+      if (!existing.waba_id) {
         return NextResponse.json(
-          { error: 'This template has no WhatsApp connection assigned.' },
+          { error: 'This template has no WABA catalog assigned.' },
           { status: 400 },
         )
       }
       const { data: config, error: configError } = await supabase
         .from('whatsapp_config')
         .select('*')
-        .eq('id', existing.whatsapp_config_id)
+        .eq('waba_id', existing.waba_id)
         .eq('account_id', accountId)
         .eq('status', 'connected')
+        .order('created_at', { ascending: true })
+        .limit(1)
         .maybeSingle()
       if (configError || !config || !config.waba_id) {
         return NextResponse.json(
