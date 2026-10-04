@@ -164,7 +164,7 @@ async function sendViaMeta(input: SendInput): Promise<{ whatsapp_message_id: str
             input.accountId,
             input.templateName,
             input.language,
-            config.configId,
+            config.wabaId,
           )
         ).row
       : null
