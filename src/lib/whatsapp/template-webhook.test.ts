@@ -46,10 +46,14 @@ function makeSupabaseStub(
             return {
               eq(column: string, value: unknown) {
                 entry.filter = { column, value };
-                return Promise.resolve({
-                  data: opts.configRows ?? [],
-                  error: null,
-                });
+                return {
+                  limit() {
+                    return Promise.resolve({ data: opts.configRows ?? [], error: null });
+                  },
+                  then(resolve: (v: unknown) => unknown) {
+                    return Promise.resolve({ data: opts.configRows ?? [], error: null }).then(resolve);
+                  },
+                };
               },
             };
           },
@@ -70,7 +74,11 @@ function makeSupabaseStub(
           return {
             eq(column: string, value: unknown) {
               entry.filter = { column, value };
-              return {
+              const chain = {
+                eq(nextColumn: string, nextValue: unknown) {
+                  entry.filter = { column: nextColumn, value: nextValue };
+                  return chain;
+                },
                 select() {
                   return Promise.resolve(result);
                 },
@@ -85,6 +93,7 @@ function makeSupabaseStub(
                   );
                 },
               };
+              return chain;
             },
           };
         },
@@ -266,6 +275,7 @@ describe('handleTemplateWebhookChange — unknown template stub (#534)', () => {
       name: 'created_in_meta',
       language: 'de',
       body_text: '',
+      waba_id: 'WABA-1',
       status: 'APPROVED',
       rejection_reason: null,
       submission_error: null,
