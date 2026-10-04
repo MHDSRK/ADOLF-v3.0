@@ -152,6 +152,8 @@
       "clearAll": "Clear all",
       "noConversations": "No conversations found",
       "noMessagesYet": "No messages yet",
+      "loadOlder": "Load older messages",
+      "loadingOlder": "Loading…",
       "unknown": "Unknown"
     },
     "messageThread": {
