@@ -61,11 +61,11 @@ BEGIN
       AND table_name = 'message_templates'
       AND column_name = 'waba_id'
   ) THEN
-    RAISE EXCEPTION 'message_templates.whatsapp_config_id is missing — migration 043 did not apply';
+    RAISE EXCEPTION 'message_templates.waba_id is missing — migration 043 did not apply';
   END IF;
 
   IF to_regclass('public.message_templates_account_waba_name_language_key') IS NULL THEN
-    RAISE EXCEPTION 'message_templates_account_config_name_language_key is missing — migration 043 did not apply';
+    RAISE EXCEPTION 'message_templates_account_waba_name_language_key is missing — migration 043 did not apply';
   END IF;
 
   IF pg_get_functiondef(
