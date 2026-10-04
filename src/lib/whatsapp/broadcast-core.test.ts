@@ -149,6 +149,7 @@ describe('createBroadcast atomicity (#370)', () => {
 
     const plan = await createBroadcast(db, 'acc', 'user', {
       templateName: 'promo',
+      whatsappConfigId: 'cfg-1',
       recipients: [{ to: '+14155550123' }],
     });
 
