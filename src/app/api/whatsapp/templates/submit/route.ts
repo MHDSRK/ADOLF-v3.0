@@ -152,6 +152,13 @@ export async function POST(request: Request) {
       )
     }
 
+    if (!config.waba_id) {
+      return NextResponse.json(
+        { error: 'WABA (WhatsApp Business Account) ID missing. Re-connect your account in Settings.' },
+        { status: 400 },
+      )
+    }
+
     const dryRun =
       process.env.WHATSAPP_TEMPLATES_DRY_RUN === 'true' ||
       process.env.WHATSAPP_TEMPLATES_DRY_RUN === '1'
@@ -163,16 +170,6 @@ export async function POST(request: Request) {
       metaTemplateId = `dry-run-${crypto.randomUUID()}`
       metaStatus = 'PENDING'
     } else {
-      if (!config.waba_id) {
-        return NextResponse.json(
-          {
-            error:
-              'WABA (WhatsApp Business Account) ID missing. Re-connect your account in Settings.',
-          },
-          { status: 400 },
-        )
-      }
-
       const accessToken = decrypt(config.access_token)
 
       // Media headers (image/video/document) need a Resumable-Upload
@@ -224,7 +221,7 @@ export async function POST(request: Request) {
 
     const { data: row, error: upsertErr } = await upsertTemplateRow(
       supabase,
-      buildUpsertRow(accountId, userId, payload, config.id, {
+      buildUpsertRow(accountId, userId, payload, config.waba_id, {
         status: normalizeStatus(metaStatus),
         metaTemplateId,
         submissionError: null,
