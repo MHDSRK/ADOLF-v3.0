@@ -186,7 +186,8 @@ export function ContactDetailView({
 
   useEffect(() => {
     if (!open || !accountId) return;
-    void supabase
+    const whatsappClient = createClient();
+    void whatsappClient
       .from('whatsapp_config')
       .select('id, phone_number_id, status')
       .eq('account_id', accountId)
