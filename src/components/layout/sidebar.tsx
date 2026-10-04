@@ -189,7 +189,7 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
         <div className="flex h-14 shrink-0 items-center justify-between gap-2 border-b border-border px-4">
           <Link href="/dashboard" className="flex items-center gap-2">
             <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
-              <span className="text-xs font-black tracking-tight">A3</span>
+              <img src="/adolf-v3-mark.svg" alt="" className="h-8 w-8 rounded-lg" />
             </div>
             <span className="text-sm font-semibold text-foreground">
               Adolf-V3.0
