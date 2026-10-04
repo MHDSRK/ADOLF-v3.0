@@ -205,7 +205,7 @@ export function TemplateManager() {
         if (!selectedConfigId && connected.length === 1) setSelectedConfigId(connected[0].id);
       });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [authLoading, user?.id, accountId]);
+  }, [authLoading, user?.id, accountId, selectedConfigId]);
 
   async function fetchTemplates(acctId: string | null, configId?: string) {
     if (!acctId) return;
