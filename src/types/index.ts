@@ -172,6 +172,8 @@ export interface Conversation {
   id: string;
   user_id: string;
   contact_id: string;
+  /** WhatsApp connection/channel used by this thread. Null only for legacy history after a connection was removed. */
+  whatsapp_config_id?: string | null;
   status: ConversationStatus;
   assigned_agent_id?: string;
   last_message_text?: string;
