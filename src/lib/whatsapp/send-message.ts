@@ -41,6 +41,7 @@ import {
   isRecipientNotAllowedError,
 } from '@/lib/whatsapp/phone-utils';
 import { resolveContactSendTarget } from '@/lib/whatsapp/wa-identity';
+import { loadConversationMetaCredentials } from '@/lib/whatsapp/conversation-config';
 import type { MessageTemplate } from '@/types';
 import {
   resolveTemplateRow,
@@ -254,29 +255,40 @@ export async function sendMessageToConversation(
   const hasValidPhone = resolvedTarget.isPhone;
   const sanitizedPhone = hasValidPhone ? sendTarget : '';
 
-  // WhatsApp config, account-scoped.
-  const { data: config, error: configError } = await db
-    .from('whatsapp_config')
-    .select('*')
-    .eq('account_id', accountId)
-    .single();
-
-  if (configError || !config) {
+  // The conversation owns the WhatsApp channel. This prevents a
+  // reply to number A from accidentally leaving number B when the
+  // account has multiple connected numbers.
+  let metaCredentials: Awaited<ReturnType<typeof loadConversationMetaCredentials>>;
+  try {
+    metaCredentials = await loadConversationMetaCredentials(
+      db,
+      accountId,
+      conversationId,
+    );
+  } catch (error) {
     throw new SendMessageError(
       'whatsapp_not_configured',
-      'WhatsApp not configured. Please set up your WhatsApp integration first.',
-      400
+      error instanceof Error ? error.message : 'WhatsApp connection unavailable',
+      400,
     );
   }
 
-  const accessToken = decrypt(config.access_token);
+  const { configId, phoneNumberId, accessToken } = metaCredentials
 
   // Self-heal legacy CBC ciphertexts. Fire-and-forget; idempotent.
-  if (isLegacyFormat(config.access_token)) {
+  const { data: storedConfig } = await db
+    .from('whatsapp_config')
+    .select('access_token')
+    .eq('id', configId)
+    .eq('account_id', accountId)
+    .maybeSingle()
+
+  if (storedConfig?.access_token && isLegacyFormat(storedConfig.access_token)) {
     void db
       .from('whatsapp_config')
       .update({ access_token: encrypt(accessToken) })
-      .eq('id', config.id)
+      .eq('id', configId)
+      .eq('account_id', accountId)
       .then(({ error }: { error: { message: string } | null }) => {
         if (error) {
           console.warn(
@@ -342,7 +354,7 @@ export async function sendMessageToConversation(
   const attempt = async (phone: string): Promise<string> => {
     if (messageType === 'template') {
       const result = await sendTemplateMessage({
-        phoneNumberId: config.phone_number_id,
+        phoneNumberId,
         accessToken,
         to: phone,
         templateName: templateName!,
