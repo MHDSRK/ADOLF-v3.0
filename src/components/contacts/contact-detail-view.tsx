@@ -197,7 +197,7 @@ export function ContactDetailView({
         const connected = rows.filter((row) => row.status === 'connected');
         setWhatsappConfigId((current) => current && connected.some((row) => row.id === current) ? current : connected.length === 1 ? connected[0].id : '');
       });
-  }, [open, accountId, supabase]);
+  }, [open, accountId]);
 
   useEffect(() => {
     if (open && contactId) {
