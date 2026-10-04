@@ -1,7 +1,6 @@
 import { NextResponse } from 'next/server';
 import { requireRole, toErrorResponse } from '@/lib/auth/account';
 import { sendReactionMessage } from '@/lib/whatsapp/meta-api';
-import { decrypt } from '@/lib/whatsapp/encryption';
 import { loadConversationMetaCredentials } from '@/lib/whatsapp/conversation-config';
 import { resolveContactSendTarget } from '@/lib/whatsapp/wa-identity';
 import {
