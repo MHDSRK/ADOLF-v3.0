@@ -35,16 +35,17 @@ export function ResponseTimeChart({
   const t = useTranslations('Dashboard.responseTimeChart')
   const hasData = data?.buckets.some((b) => b.avgMinutes != null) ?? false
 
-  // Map buckets → Tremor rows. Null `avgMinutes` (no samples)
-  // collapses to 0; the chart will render an empty slot for it.
-  // We attach `samples` on the row so a future customTooltip can
-  // surface "no samples" copy without losing the data shape.
+  // Do not coerce missing response-time samples to zero: zero minutes
+  // and "no data" are different business states. Only sampled weekdays
+  // are rendered in the chart.
   const chartData =
-    data?.buckets.map((b, i) => ({
-      day: DOW_SHORT_MON_FIRST[i],
-      [CATEGORY]: b.avgMinutes ?? 0,
-      samples: b.samples,
-    })) ?? []
+    data?.buckets
+      .filter((b) => b.avgMinutes != null)
+      .map((b) => ({
+        day: DOW_SHORT_MON_FIRST[b.dow],
+        [CATEGORY]: b.avgMinutes as number,
+        samples: b.samples,
+      })) ?? []
 
   return (
     <section className="rounded-xl border border-border bg-card">
