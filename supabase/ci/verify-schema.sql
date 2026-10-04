@@ -55,6 +55,19 @@ BEGIN
   -- first call — plpgsql resolves names at execution, not CREATE, so a
   -- plain replay can't catch it). Assert the qualified form is what's
   -- actually installed.
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public'
+      AND table_name = 'message_templates'
+      AND column_name = 'whatsapp_config_id'
+  ) THEN
+    RAISE EXCEPTION 'message_templates.whatsapp_config_id is missing — migration 043 did not apply';
+  END IF;
+
+  IF to_regclass('public.message_templates_account_config_name_language_key') IS NULL THEN
+    RAISE EXCEPTION 'message_templates_account_config_name_language_key is missing — migration 043 did not apply';
+  END IF;
+
   IF pg_get_functiondef(
        'public.create_broadcast_with_recipients(uuid,uuid,text,text,text,integer,uuid[],jsonb[])'::regprocedure
      ) NOT LIKE '%RETURNING id, broadcast_recipients.contact_id%' THEN
