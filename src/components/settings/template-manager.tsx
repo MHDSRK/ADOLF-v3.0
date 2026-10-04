@@ -132,7 +132,7 @@ function emptyButton(type: TemplateButton['type']): TemplateButton {
 export function TemplateManager() {
   const t = useTranslations('Settings.templates');
   const supabase = createClient();
-  const { user, loading: authLoading } = useAuth();
+  const { user, accountId, loading: authLoading } = useAuth();
 
   const [loading, setLoading] = useState(true);
   const [templates, setTemplates] = useState<MessageTemplate[]>([]);
@@ -145,6 +145,8 @@ export function TemplateManager() {
   // dialog title + CTA. Set to the template id to pre-fill from a row.
   const [editingId, setEditingId] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [whatsappConfigs, setWhatsappConfigs] = useState<{ id: string; phone_number_id: string; status: string }[]>([]);
+  const [selectedConfigId, setSelectedConfigId] = useState('');
   // Template selected for the confirm-delete dialog. The destructive
   // action goes through this two-step so a slip on the trash icon
   // doesn't take the template off Meta as well as locally.
@@ -189,18 +191,42 @@ export function TemplateManager() {
       setLoading(false);
       return;
     }
-    fetchTemplates(user.id);
+    fetchTemplates(accountId, selectedConfigId || undefined);
+    const client = createClient();
+    void client
+      .from('whatsapp_config')
+      .select('id, phone_number_id, status')
+      .eq('account_id', accountId)
+      .order('created_at', { ascending: true })
+      .then(({ data }) => {
+        const rows = data ?? [];
+        setWhatsappConfigs(rows);
+        const connected = rows.filter((row) => row.status === 'connected');
+        if (!selectedConfigId && connected.length === 1) setSelectedConfigId(connected[0].id);
+      });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [authLoading, user?.id]);
+  }, [authLoading, user?.id, accountId]);
 
-  async function fetchTemplates(userId: string) {
+  async function fetchTemplates(acctId: string | null, configId?: string) {
+    if (!acctId) return;
     try {
       setLoading(true);
       const { data, error } = await supabase
         .from('message_templates')
         .select('*')
-        .eq('user_id', userId)
+        .eq('account_id', acctId)
         .order('created_at', { ascending: false });
+      if (configId) {
+        const filtered = await supabase
+          .from('message_templates')
+          .select('*')
+          .eq('account_id', acctId)
+          .eq('whatsapp_config_id', configId)
+          .order('created_at', { ascending: false });
+        if (filtered.error) throw filtered.error;
+        setTemplates(filtered.data || []);
+        return;
+      }
       if (error) throw error;
       setTemplates(data || []);
     } catch (err) {
@@ -236,11 +262,13 @@ export function TemplateManager() {
       buttons: form.buttons.length > 0 ? form.buttons : undefined,
       sample_values:
         Object.keys(sample_values).length > 0 ? sample_values : undefined,
+      whatsapp_config_id: selectedConfigId || undefined,
     };
   }
 
   function openEdit(template: MessageTemplate) {
     setEditingId(template.id);
+    if (template.whatsapp_config_id) setSelectedConfigId(template.whatsapp_config_id);
     setForm({
       name: template.name,
       category: template.category,
@@ -311,7 +339,13 @@ export function TemplateManager() {
     if (!user) return;
     setSyncing(true);
     try {
-      const res = await fetch('/api/whatsapp/templates/sync', { method: 'POST' });
+      if (!selectedConfigId) {
+        throw new Error('Select the WhatsApp connection whose templates you want to sync.');
+      }
+      const res = await fetch(
+        `/api/whatsapp/templates/sync?config_id=${encodeURIComponent(selectedConfigId)}`,
+        { method: 'POST' },
+      );
       const data = await res.json();
       if (!res.ok) {
         throw new Error(data?.error || `Sync failed (HTTP ${res.status})`);
@@ -340,7 +374,7 @@ export function TemplateManager() {
           { duration: 10000 },
         );
       }
-      await fetchTemplates(user.id);
+      await fetchTemplates(accountId, selectedConfigId);
     } catch (err) {
       console.error('Template sync error:', err);
       toast.error(err instanceof Error ? err.message : t('toastSyncError'));
@@ -524,6 +558,20 @@ export function TemplateManager() {
         description={t('description')}
         action={
           <div className="flex items-center gap-2">
+            <Select value={selectedConfigId} onValueChange={setSelectedConfigId}>
+              <SelectTrigger className="w-[210px]">
+                <SelectValue placeholder="WhatsApp connection" />
+              </SelectTrigger>
+              <SelectContent>
+                {whatsappConfigs
+                  .filter((config) => config.status === 'connected')
+                  .map((config) => (
+                    <SelectItem key={config.id} value={config.id}>
+                      {config.phone_number_id}
+                    </SelectItem>
+                  ))}
+              </SelectContent>
+            </Select>
             <Button
               variant="outline"
               onClick={handleSyncFromMeta}
