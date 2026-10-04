@@ -338,7 +338,8 @@ export async function sendMessageToConversation(
       db,
       accountId,
       templateName,
-      templateLanguage
+      templateLanguage,
+      metaCredentials.wabaId,
     );
     if (resolved.malformed) {
       throw new SendMessageError(
@@ -368,7 +369,7 @@ export async function sendMessageToConversation(
     }
     if (isMediaKind) {
       const result = await sendMediaMessage({
-        phoneNumberId: config.phone_number_id,
+        phoneNumberId,
         accessToken,
         to: phone,
         kind: messageType as MediaKind,
