@@ -172,6 +172,24 @@ FROM whatsapp_config wc
 WHERE mt.account_id = wc.account_id
   AND mt.waba_id IS NULL;
 
+-- Pre-043, the unique key was per user. Two teammates could therefore
+-- have identical rows inside one account. Collapse those duplicates before
+-- adding the account/WABA key; keep the most recently updated copy.
+WITH ranked AS (
+  SELECT
+    id,
+    row_number() OVER (
+      PARTITION BY account_id, waba_id, name, language
+      ORDER BY updated_at DESC NULLS LAST, created_at DESC NULLS LAST, id
+    ) AS rn
+  FROM message_templates
+  WHERE waba_id IS NOT NULL
+)
+DELETE FROM message_templates mt
+USING ranked r
+WHERE mt.id = r.id
+  AND r.rn > 1;
+
 CREATE UNIQUE INDEX IF NOT EXISTS message_templates_account_waba_name_language_key
   ON message_templates(account_id, waba_id, name, language)
   WHERE waba_id IS NOT NULL;
