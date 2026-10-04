@@ -550,7 +550,7 @@ export async function POST(request: Request) {
       // (NOT NULL post-017, UNIQUE so duplicates trip the constraint
       // up-front), `user_id` is the audit column identifying which
       // member of the account saved the config.
-      const { error: insertError } = await supabase
+      const { data: insertedConfig, error: insertError } = await supabase
         .from('whatsapp_config')
         .insert({
           account_id: accountId,
