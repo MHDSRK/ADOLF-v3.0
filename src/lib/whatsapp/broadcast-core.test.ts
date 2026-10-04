@@ -24,6 +24,7 @@ describe('createBroadcast validation', () => {
     await expect(
       createBroadcast(db, 'acc', 'user', {
         templateName: '',
+        whatsappConfigId: 'cfg-1',
         recipients: [{ to: '+14155550123' }],
       })
     ).rejects.toMatchObject({ code: 'bad_request', status: 400 });
@@ -33,6 +34,7 @@ describe('createBroadcast validation', () => {
     await expect(
       createBroadcast(db, 'acc', 'user', {
         templateName: 'promo',
+        whatsappConfigId: 'cfg-1',
         recipients: [],
       })
     ).rejects.toBeInstanceOf(BroadcastError);
@@ -43,7 +45,7 @@ describe('createBroadcast validation', () => {
       to: '+14155550123',
     }));
     await expect(
-      createBroadcast(db, 'acc', 'user', { templateName: 'promo', recipients })
+      createBroadcast(db, 'acc', 'user', { templateName: 'promo', whatsappConfigId: 'cfg-1', recipients })
     ).rejects.toMatchObject({ status: 400 });
   });
 });
@@ -111,6 +113,7 @@ describe('createBroadcast recipient validation (#586)', () => {
 
     const plan = await createBroadcast(db, 'acc', 'user', {
       templateName: 'promo',
+      whatsappConfigId: 'cfg-1',
       recipients: [
         { to: '4155551212' }, // US national → Meta would read +41 (Switzerland)
         { to: '14155550123' }, // country code but no + — indistinguishable
