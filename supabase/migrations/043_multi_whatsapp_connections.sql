@@ -191,5 +191,4 @@ WHERE mt.id = r.id
   AND r.rn > 1;
 
 CREATE UNIQUE INDEX IF NOT EXISTS message_templates_account_waba_name_language_key
-  ON message_templates(account_id, waba_id, name, language)
-  WHERE waba_id IS NOT NULL;
+  ON message_templates(account_id, waba_id, name, language);
