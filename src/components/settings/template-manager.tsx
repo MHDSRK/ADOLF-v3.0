@@ -208,7 +208,7 @@ export function TemplateManager() {
   }, [authLoading, user?.id, accountId, selectedConfigId]);
 
   async function fetchTemplates(acctId: string | null, wabaId?: string) {
-    if (!acctId) return;
+    if (!acctId) { setLoading(false); return; }
     try {
       setLoading(true);
       let query = supabase
