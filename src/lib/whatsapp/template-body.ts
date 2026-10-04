@@ -93,14 +93,14 @@ export async function resolveTemplateRow(
   accountId: string,
   templateName: string,
   requestedLanguage?: string | null,
-  whatsappConfigId?: string | null,
+  wabaId?: string | null,
 ): Promise<ResolvedTemplate> {
   let query = db
     .from('message_templates')
     .select('*')
     .eq('account_id', accountId)
     .eq('name', templateName)
-  if (whatsappConfigId) query = query.eq('whatsapp_config_id', whatsappConfigId)
+  if (wabaId) query = query.eq('waba_id', wabaId)
   const { data } = await query
 
   // Sorted here rather than with `.order()` so the only query-builder
