@@ -145,7 +145,7 @@ export function TemplateManager() {
   // dialog title + CTA. Set to the template id to pre-fill from a row.
   const [editingId, setEditingId] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
-  const [whatsappConfigs, setWhatsappConfigs] = useState<{ id: string; phone_number_id: string; status: string }[]>([]);
+  const [whatsappConfigs, setWhatsappConfigs] = useState<{ id: string; phone_number_id: string; status: string; waba_id: string | null }[]>([]);
   const [selectedConfigId, setSelectedConfigId] = useState('');
   // Template selected for the confirm-delete dialog. The destructive
   // action goes through this two-step so a slip on the trash icon
@@ -191,7 +191,7 @@ export function TemplateManager() {
       setLoading(false);
       return;
     }
-    fetchTemplates(accountId, selectedConfigId || undefined);
+    fetchTemplates(accountId, whatsappConfigs.find((config) => config.id === selectedConfigId)?.waba_id ?? undefined);
     const client = createClient();
     void client
       .from('whatsapp_config')
@@ -207,26 +207,17 @@ export function TemplateManager() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [authLoading, user?.id, accountId, selectedConfigId]);
 
-  async function fetchTemplates(acctId: string | null, configId?: string) {
+  async function fetchTemplates(acctId: string | null, wabaId?: string) {
     if (!acctId) return;
     try {
       setLoading(true);
-      const { data, error } = await supabase
+      let query = supabase
         .from('message_templates')
         .select('*')
         .eq('account_id', acctId)
         .order('created_at', { ascending: false });
-      if (configId) {
-        const filtered = await supabase
-          .from('message_templates')
-          .select('*')
-          .eq('account_id', acctId)
-          .eq('whatsapp_config_id', configId)
-          .order('created_at', { ascending: false });
-        if (filtered.error) throw filtered.error;
-        setTemplates(filtered.data || []);
-        return;
-      }
+      if (wabaId) query = query.eq('waba_id', wabaId);
+      const { data, error } = await query;
       if (error) throw error;
       setTemplates(data || []);
     } catch (err) {
@@ -268,6 +259,10 @@ export function TemplateManager() {
 
   function openEdit(template: MessageTemplate) {
     setEditingId(template.id);
+    if (template.waba_id) {
+      const matching = whatsappConfigs.find((config) => config.waba_id === template.waba_id && config.status === 'connected');
+      if (matching) setSelectedConfigId(matching.id);
+    }
     if (template.whatsapp_config_id) setSelectedConfigId(template.whatsapp_config_id);
     setForm({
       name: template.name,
@@ -314,7 +309,7 @@ export function TemplateManager() {
       }
       // Refresh first, then close — re-opening the dialog
       // immediately should not show a stale list.
-      if (accountId) await fetchTemplates(accountId, selectedConfigId);
+      if (accountId) await fetchTemplates(accountId, whatsappConfigs.find((config) => config.id === selectedConfigId)?.waba_id ?? undefined);
       toast.success(
         data.dry_run
           ? isEdit
@@ -374,7 +369,7 @@ export function TemplateManager() {
           { duration: 10000 },
         );
       }
-      await fetchTemplates(accountId, selectedConfigId);
+      await fetchTemplates(accountId, whatsappConfigs.find((config) => config.id === selectedConfigId)?.waba_id ?? undefined);
     } catch (err) {
       console.error('Template sync error:', err);
       toast.error(err instanceof Error ? err.message : t('toastSyncError'));
