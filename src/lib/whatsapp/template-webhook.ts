@@ -322,14 +322,15 @@ async function createStubForUnknownTemplate(p: StubParams): Promise<void> {
     return
   }
   const rows = (configs ?? []) as { account_id: string; user_id: string }[]
-  if (rows.length !== 1) {
+  const accountRows = [...new Map(rows.map((row) => [row.account_id, row])).values()]
+  if (accountRows.length !== 1) {
     console.warn(
-      `[template-webhook] ${kind} for unknown template ${where} — ${rows.length === 0 ? 'no' : rows.length} whatsapp_config rows match that WABA id; not creating a stub. Run "Sync from Meta" for the owning account.`,
+      `[template-webhook] ${kind} for unknown template ${where} — ${accountRows.length === 0 ? 'no' : accountRows.length} account(s) match that WABA id; not creating a stub. Run "Sync from Meta" for the owning account.`,
     )
     return
   }
 
-  const config = rows[0]
+  const config = accountRows[0]
   // account_id is tenancy; user_id is the NOT NULL audit FK — the
   // config owner, same convention the webhook uses for inbound writes.
   // `category` and `status` fall back to their column defaults unless
