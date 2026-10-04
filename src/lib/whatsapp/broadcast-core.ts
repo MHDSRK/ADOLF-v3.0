@@ -141,7 +141,8 @@ export async function createBroadcast(
     db,
     accountId,
     templateName,
-    params.templateLanguage
+    params.templateLanguage,
+    whatsappConfigId,
   );
   if (resolvedTemplate.malformed) {
     throw new BroadcastError(
