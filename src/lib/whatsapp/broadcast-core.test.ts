@@ -63,17 +63,23 @@ function makeDb(rpcResult: { data: unknown; error: unknown }) {
   const database = {
     from(table: string) {
       if (table === 'whatsapp_config') {
-        return {
-          select: () => ({
-            eq: () => ({
-              single: () =>
-                Promise.resolve({
-                  data: { phone_number_id: 'pn-1', access_token: 'enc' },
-                  error: null,
-                }),
+        const chain: Record<string, unknown> = {
+          select: () => chain,
+          eq: () => chain,
+          single: () =>
+            Promise.resolve({
+              data: {
+                id: 'cfg-1',
+                account_id: 'acc',
+                phone_number_id: 'pn-1',
+                access_token: 'enc',
+                status: 'connected',
+                waba_id: 'waba-1',
+              },
+              error: null,
             }),
-          }),
         };
+        return chain;
       }
       if (table === 'message_templates') {
         const chain: Record<string, unknown> = {
