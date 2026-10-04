@@ -127,7 +127,7 @@ function extractSampleValues(
   return sv
 }
 
-export async function POST() {
+export async function POST(request: Request) {
   try {
     // Syncing rewrites the account-wide template catalog, which is
     // settings-class data: `canEditSettings` and the message_templates
@@ -135,18 +135,34 @@ export async function POST() {
     // Resolving account_id off the profile only proved membership.
     const { supabase, accountId, userId } = await requireRole('admin')
 
-    const { data: config, error: configError } = await supabase
+    const requestedConfigId = new URL(request.url).searchParams.get('config_id')
+    let configQuery = supabase
       .from('whatsapp_config')
       .select('*')
       .eq('account_id', accountId)
-      .single()
+      .eq('status', 'connected')
 
-    if (configError || !config) {
+    if (requestedConfigId) {
+      configQuery = configQuery.eq('id', requestedConfigId)
+    } else {
+      configQuery = configQuery.order('created_at', { ascending: true }).limit(2)
+    }
+
+    const { data: configRows, error: configError } = await configQuery
+    if (configError) {
+      return NextResponse.json({ error: configError.message }, { status: 500 })
+    }
+    const rows = Array.isArray(configRows) ? configRows : configRows ? [configRows] : []
+    if (!requestedConfigId && rows.length > 1) {
       return NextResponse.json(
-        {
-          error:
-            'WhatsApp not configured. Connect your WhatsApp Business account in Settings first.',
-        },
+        { error: 'config_id is required when this account has multiple WhatsApp connections.' },
+        { status: 409 },
+      )
+    }
+    const config = rows[0]
+    if (!config) {
+      return NextResponse.json(
+        { error: 'WhatsApp connection not found or disconnected.' },
         { status: 400 },
       )
     }
@@ -223,6 +239,7 @@ export async function POST() {
         // post-017, so an INSERT without it errors.
         account_id: accountId,
         user_id: userId,
+        whatsapp_config_id: config.id,
         name: t.name,
         category: normalizeCategory(t.category),
         language: t.language,
@@ -243,6 +260,7 @@ export async function POST() {
         .from('message_templates')
         .select('id')
         .eq('account_id', accountId)
+        .eq('whatsapp_config_id', config.id)
         .eq('name', t.name)
         .eq('language', t.language)
         .maybeSingle()
