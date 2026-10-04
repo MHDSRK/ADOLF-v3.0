@@ -25,6 +25,7 @@ function buildUpsertRow(
   accountId: string,
   userId: string,
   payload: TemplatePayload,
+  whatsappConfigId: string,
   extras: {
     status: 'DRAFT' | string
     metaTemplateId: string | null
@@ -36,6 +37,7 @@ function buildUpsertRow(
     // of migration 017. Without this an INSERT throws on the
     // not-null constraint.
     account_id: accountId,
+    whatsapp_config_id: whatsappConfigId,
     // Original author — kept as audit only. The unique index is
     // still on (user_id, name, language) — see the upsert helper
     // for the cross-teammate dedup follow-up.
@@ -72,7 +74,7 @@ async function upsertTemplateRow(
   // can't shadow each other's same-named template.
   return supabase
     .from('message_templates')
-    .upsert(row, { onConflict: 'user_id,name,language' })
+    .upsert(row, { onConflict: 'account_id,whatsapp_config_id,name,language' })
     .select()
     .single()
 }
@@ -127,6 +129,29 @@ export async function POST(request: Request) {
       )
     }
 
+    const requestedConfigId = payload.whatsapp_config_id
+    if (!requestedConfigId) {
+      return NextResponse.json(
+        { error: 'whatsapp_config_id is required when submitting a template.' },
+        { status: 400 },
+      )
+    }
+
+    const { data: config, error: configError } = await supabase
+      .from('whatsapp_config')
+      .select('*')
+      .eq('id', requestedConfigId)
+      .eq('account_id', accountId)
+      .eq('status', 'connected')
+      .maybeSingle()
+
+    if (configError || !config) {
+      return NextResponse.json(
+        { error: 'WhatsApp connection not found or disconnected.' },
+        { status: 400 },
+      )
+    }
+
     const dryRun =
       process.env.WHATSAPP_TEMPLATES_DRY_RUN === 'true' ||
       process.env.WHATSAPP_TEMPLATES_DRY_RUN === '1'
@@ -138,20 +163,6 @@ export async function POST(request: Request) {
       metaTemplateId = `dry-run-${crypto.randomUUID()}`
       metaStatus = 'PENDING'
     } else {
-      const { data: config, error: configError } = await supabase
-        .from('whatsapp_config')
-        .select('*')
-        .eq('account_id', accountId)
-        .single()
-      if (configError || !config) {
-        return NextResponse.json(
-          {
-            error:
-              'WhatsApp not configured. Connect your WhatsApp Business account in Settings first.',
-          },
-          { status: 400 },
-        )
-      }
       if (!config.waba_id) {
         return NextResponse.json(
           {
@@ -193,7 +204,7 @@ export async function POST(request: Request) {
         // until they fix and re-submit.
         await upsertTemplateRow(
           supabase,
-          buildUpsertRow(accountId, userId, payload, {
+          buildUpsertRow(accountId, userId, payload, config.id, {
             status: 'DRAFT',
             metaTemplateId: null,
             submissionError: message,
@@ -213,7 +224,7 @@ export async function POST(request: Request) {
 
     const { data: row, error: upsertErr } = await upsertTemplateRow(
       supabase,
-      buildUpsertRow(accountId, userId, payload, {
+      buildUpsertRow(accountId, userId, payload, config.id, {
         status: normalizeStatus(metaStatus),
         metaTemplateId,
         submissionError: null,
