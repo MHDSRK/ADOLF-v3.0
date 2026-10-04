@@ -808,6 +808,7 @@ export function ContactDetailView({
       </SheetContent>
     </Sheet>
     <TemplatePicker
+        whatsappConfigId={whatsappConfigId}
       open={templatePickerOpen}
       onOpenChange={setTemplatePickerOpen}
       onSelect={handleSendTemplate}
