@@ -97,7 +97,7 @@ const navItems: NavItem[] = [
   { href: "/pipelines", labelKey: "pipelines", icon: GitBranch },
   { href: "/broadcasts", labelKey: "broadcasts", icon: Radio },
   { href: "/automations", labelKey: "automations", icon: Zap },
-  { href: "/flows", labelKey: "flows", icon: Workflow, beta: true },
+  { href: "/flows", labelKey: "flows", icon: Workflow },
   { href: "/agents", labelKey: "aiAgents", icon: Bot },
 ];
 
@@ -189,10 +189,10 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
         <div className="flex h-14 shrink-0 items-center justify-between gap-2 border-b border-border px-4">
           <Link href="/dashboard" className="flex items-center gap-2">
             <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
-              <MessageSquare className="h-4 w-4" />
+              <span className="text-xs font-black tracking-tight">A3</span>
             </div>
             <span className="text-sm font-semibold text-foreground">
-              {t("title")}
+              Adolf-V3.0
             </span>
           </Link>
           <button
