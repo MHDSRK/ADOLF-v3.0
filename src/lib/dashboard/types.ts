@@ -8,7 +8,7 @@ export interface MetricDelta {
 }
 
 export interface MetricsBundle {
-  activeConversations: MetricDelta
+  activeConversations: Pick<MetricDelta, 'current'>
   newContactsToday: MetricDelta
   openDealsValue: number
   openDealsCount: number
