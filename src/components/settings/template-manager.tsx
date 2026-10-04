@@ -314,7 +314,7 @@ export function TemplateManager() {
       }
       // Refresh first, then close — re-opening the dialog
       // immediately should not show a stale list.
-      if (user) await fetchTemplates(user.id);
+      if (accountId) await fetchTemplates(accountId, selectedConfigId);
       toast.success(
         data.dry_run
           ? isEdit
