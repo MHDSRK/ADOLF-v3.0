@@ -368,9 +368,9 @@ export function ConversationList({
                       : "text-popover-foreground",
                   )}
                 >
-                  All numbers
+                  All Inboxes
                 </DropdownMenuItem>
-                {whatsappConfigs.map((config) => (
+                {whatsappConfigs.map((config, index) => (
                   <DropdownMenuItem
                     key={config.id}
                     onClick={() => handleWhatsappConfigChange(config.id)}
@@ -382,7 +382,7 @@ export function ConversationList({
                     )}
                   >
                     <span className="truncate">
-                      WhatsApp · {config.phone_number_id}
+                      {index === 0 ? "IGNITE" : index === 1 ? "DISUN" : `WhatsApp · ${config.phone_number_id}`}
                     </span>
                   </DropdownMenuItem>
                 ))}
