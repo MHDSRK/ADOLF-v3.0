@@ -154,7 +154,7 @@ describe('resolveConversationByPhone', () => {
 
   it('returns the existing contact + conversation without creating', async () => {
     const db = makeDb({
-      config: { user_id: 'owner-1' },
+      config: { id: 'cfg-1', user_id: 'owner-1' },
       contactCandidates: [{ id: 'c1', phone: '14155550123' }],
       existingConversation: { id: 'cv1' },
     });
@@ -221,7 +221,7 @@ describe('resolveConversationByPhone', () => {
       existingConversationByCall: [null, { id: 'cv-raced' }],
       insertConversationError: { code: '23505' },
     });
-    const res = await resolveConversationByPhone(db, 'acct', '+14155550123');
+    const res = await resolveConversationByPhone(db, 'acct', '+14155550123', undefined, 'cfg-1');
     expect(res).toEqual({
       conversationId: 'cv-raced',
       contactId: 'c1',
