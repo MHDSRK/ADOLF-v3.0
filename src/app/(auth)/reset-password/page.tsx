@@ -151,7 +151,7 @@ export default function ResetPasswordPage() {
                 // fresh top-level request, which a soft router.push
                 // can race (issue #365).
                 // eslint-disable-next-line @next/next/no-location-assign-relative-destination -- deliberate full reload so the auth cookies reach the middleware
-                window.location.href = "/dashboard";
+                window.location.href = "/inbox";
               }}
             >
               {t("continueToDashboard")}
