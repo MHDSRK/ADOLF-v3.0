@@ -199,7 +199,7 @@ describe('resolveConversationByPhone', () => {
     // 23505 unique violation, and the post-race re-lookup now returns
     // the row a concurrent writer created.
     const db = makeDb({
-      config: { user_id: 'owner-1' },
+      config: { id: 'cfg-1', user_id: 'owner-1' },
       contactCandidatesByCall: [[], [{ id: 'c-raced', phone: '14155550123' }]],
       insertContactError: { code: '23505' },
       existingConversation: { id: 'cv-raced' },
