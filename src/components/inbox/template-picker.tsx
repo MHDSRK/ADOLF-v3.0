@@ -34,6 +34,8 @@ interface TemplatePickerProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onSelect: (template: MessageTemplate, values: TemplateSendValues) => void;
+  /** Existing thread channel; limits the picker to templates approved in that WABA. */
+  whatsappConfigId?: string | null;
 }
 
 function renderBodyPreview(body: string, params: string[]): string {
@@ -78,6 +80,7 @@ export function TemplatePicker({
   open,
   onOpenChange,
   onSelect,
+  whatsappConfigId,
 }: TemplatePickerProps) {
   const t = useTranslations("Inbox.templatePicker");
 
@@ -111,11 +114,23 @@ export function TemplatePicker({
       // user_id. Templates are account-owned, so filtering on the caller's
       // user_id hid templates that a teammate created — leaving them unable
       // to send approved templates in a shared account.
-      const { data, error } = await supabase
+      let wabaId: string | null = null;
+      if (whatsappConfigId) {
+        const { data: config } = await supabase
+          .from("whatsapp_config")
+          .select("waba_id")
+          .eq("id", whatsappConfigId)
+          .maybeSingle();
+        wabaId = config?.waba_id ?? null;
+      }
+
+      let query = supabase
         .from("message_templates")
         .select("*")
         .eq("status", "APPROVED")
         .order("created_at", { ascending: false });
+      if (wabaId) query = query.eq("waba_id", wabaId);
+      const { data, error } = await query;
 
       if (cancelled) return;
       if (error) {
