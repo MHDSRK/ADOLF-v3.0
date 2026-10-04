@@ -61,7 +61,7 @@ const THEME_BOOT_SCRIPT = `
   try {
     var MODE_KEY = "wacrm.mode";
     var MODE_DEFAULT = "dark";
-    var MODES = ["light", "dark"];
+    var MODES = ["light","dark"];
     var savedMode = localStorage.getItem(MODE_KEY);
     d.dataset.mode = MODES.indexOf(savedMode) !== -1 ? savedMode : MODE_DEFAULT;
   } catch (_e) {
