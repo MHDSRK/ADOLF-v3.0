@@ -38,7 +38,7 @@ vi.mock("@supabase/ssr", () => ({
 }));
 
 // Imported after the mock is registered.
-const { middleware } = await import("./middleware");
+const { proxy } = await import("./proxy");
 
 beforeEach(() => {
   process.env.NEXT_PUBLIC_SUPABASE_URL = "https://test.supabase.co";
@@ -60,7 +60,7 @@ describe("middleware — refreshed auth cookies survive redirects", () => {
     mockUser = { id: "user-1" };
     refreshedCookies = [ROTATED];
 
-    const res = await middleware(
+    const res = await proxy(
       new NextRequest("https://app.test/login"),
     );
 
@@ -79,7 +79,7 @@ describe("middleware — refreshed auth cookies survive redirects", () => {
     // clearing a dead session); those must not be dropped on the redirect.
     refreshedCookies = [{ ...ROTATED, value: "cleared" }];
 
-    const res = await middleware(
+    const res = await proxy(
       new NextRequest("https://app.test/dashboard"),
     );
 
@@ -92,7 +92,7 @@ describe("middleware — refreshed auth cookies survive redirects", () => {
     mockUser = { id: "user-1" };
     refreshedCookies = [ROTATED];
 
-    const res = await middleware(
+    const res = await proxy(
       new NextRequest("https://app.test/login?invite=abc123"),
     );
 
@@ -104,7 +104,7 @@ describe("middleware — refreshed auth cookies survive redirects", () => {
     mockUser = { id: "user-1" };
     refreshedCookies = [ROTATED];
 
-    const res = await middleware(
+    const res = await proxy(
       new NextRequest("https://app.test/dashboard"),
     );
 
@@ -132,7 +132,7 @@ describe("middleware — every dashboard route requires a session", () => {
   it.each(dashboardRoutes)("redirects a signed-out visitor from %s to /login", async (route) => {
     mockUser = null;
 
-    const res = await middleware(new NextRequest(`https://app.test${route}`));
+    const res = await proxy(new NextRequest(`https://app.test${route}`));
 
     expect(res.status).toBe(307);
     expect(new URL(res.headers.get("location")!).pathname).toBe("/login");
