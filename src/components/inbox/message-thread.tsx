@@ -920,9 +920,6 @@ export function MessageThread({
         <h3 className="mt-4 text-sm font-medium text-muted-foreground">
           {t("selectConversation")}
         </h3>
-        <p className="mt-1 text-xs text-muted-foreground">
-          {t("selectConversationHint")}
-        </p>
       </div>
     );
   }
@@ -1150,9 +1147,6 @@ export function MessageThread({
         ) : messages.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-12">
             <p className="text-sm text-muted-foreground">{t("noMessagesYet")}</p>
-            <p className="text-xs text-muted-foreground">
-              {t("sendTemplateHint")}
-            </p>
           </div>
         ) : (
           <div className="space-y-4">
