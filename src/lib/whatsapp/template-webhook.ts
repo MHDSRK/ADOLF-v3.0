@@ -158,11 +158,12 @@ async function handleStatusUpdate(
     submission_error: null,
   }
 
-  const { data, error } = await supabase
+  let statusQuery = supabase
     .from('message_templates')
     .update(update)
     .eq('meta_template_id', metaTemplateId)
-    .select('id')
+  if (wabaId) statusQuery = statusQuery.eq('waba_id', wabaId)
+  const { data, error } = await statusQuery.select('id')
 
   if (error) {
     console.error(
@@ -181,11 +182,14 @@ async function handleStatusUpdate(
       wabaId,
       fields: update,
       retryUpdate: () =>
-        supabase
-          .from('message_templates')
-          .update(update)
-          .eq('meta_template_id', metaTemplateId)
-          .select('id'),
+        (() => {
+          let retry = supabase
+            .from('message_templates')
+            .update(update)
+            .eq('meta_template_id', metaTemplateId)
+          if (wabaId) retry = retry.eq('waba_id', wabaId)
+          return retry.select('id')
+        })(),
       supabase,
     })
     return
@@ -221,12 +225,14 @@ async function handleQualityUpdate(
       : null
 
   const update = { quality_score: score }
-  const runUpdate = () =>
-    supabase
+  const runUpdate = () => {
+    let query = supabase
       .from('message_templates')
       .update(update)
       .eq('meta_template_id', metaTemplateId)
-      .select('id')
+    if (wabaId) query = query.eq('waba_id', wabaId)
+    return query.select('id')
+  }
 
   const { data, error } = await runUpdate()
 
@@ -306,6 +312,7 @@ async function createStubForUnknownTemplate(p: StubParams): Promise<void> {
     .from('whatsapp_config')
     .select('account_id, user_id')
     .eq('waba_id', wabaId)
+    .limit(2)
 
   if (configError) {
     console.error(
@@ -330,6 +337,7 @@ async function createStubForUnknownTemplate(p: StubParams): Promise<void> {
   const stub = {
     account_id: config.account_id,
     user_id: config.user_id,
+    waba_id: wabaId,
     meta_template_id: metaTemplateId,
     name,
     language: p.language || DEFAULT_TEMPLATE_LANGUAGE,
