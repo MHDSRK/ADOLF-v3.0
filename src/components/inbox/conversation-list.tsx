@@ -34,6 +34,8 @@ interface ConversationListProps {
    * or the tab was throttled. Optional so existing callers keep working.
    */
   resyncToken?: number;
+  /** Called when the inbox WhatsApp channel filter changes. */
+  onWhatsappConfigChange?: (configId: string | null) => void;
 }
 
 const STATUS_COLORS: Record<ConversationStatus, string> = {
@@ -52,6 +54,7 @@ export function ConversationList({
   conversations,
   onConversationsLoaded,
   resyncToken = 0,
+  onWhatsappConfigChange,
 }: ConversationListProps) {
   const t = useTranslations("Inbox.conversationList");
   
@@ -68,10 +71,13 @@ export function ConversationList({
   const [loading, setLoading] = useState(true);
   // Contact-based filters (issue #272). Tags use OR logic (a conversation
   // matches if its contact carries any selected tag), consistent with
-  // Broadcast audience filtering. Company is an exact match on the field.
+  // Broadcast audience filtering.
   const [tags, setTags] = useState<Tag[]>([]);
   const [selectedTagIds, setSelectedTagIds] = useState<string[]>([]);
-  const [selectedCompany, setSelectedCompany] = useState<string | null>(null);
+  const [whatsappConfigs, setWhatsappConfigs] = useState<
+    { id: string; phone_number_id: string; waba_id: string | null; status: string }[]
+  >([]);
+  const [selectedWhatsappConfigId, setSelectedWhatsappConfigId] = useState<string | null>(null);
 
   // Keep the latest callback in a ref so the fetch effect below can
   // have a stable, empty-dep identity. Previously the fetch useCallback
@@ -131,26 +137,38 @@ export function ConversationList({
   useEffect(() => {
     const supabase = createClient();
     let cancelled = false;
+
     (async () => {
-      const { data } = await supabase.from("tags").select("*").order("name");
-      if (!cancelled && data) setTags(data as Tag[]);
+      const [{ data: tagData }, { data: whatsappData }] = await Promise.all([
+        supabase.from("tags").select("*").order("name"),
+        supabase
+          .from("whatsapp_config")
+          .select("id, phone_number_id, waba_id, status")
+          .order("created_at", { ascending: true }),
+      ]);
+
+      if (cancelled) return;
+      if (tagData) setTags(tagData as Tag[]);
+      if (whatsappData) {
+        const configs = whatsappData as {
+          id: string;
+          phone_number_id: string;
+          waba_id: string | null;
+          status: string;
+        }[];
+        setWhatsappConfigs(configs);
+        setSelectedWhatsappConfigId((current) =>
+          current && configs.some((config) => config.id === current)
+            ? current
+            : null,
+        );
+      }
     })();
+
     return () => {
       cancelled = true;
     };
   }, []);
-
-  // Company options are derived from the loaded conversations — there's no
-  // separate companies table, and only companies with a live conversation
-  // are worth offering as an inbox filter.
-  const companies = useMemo(() => {
-    const set = new Set<string>();
-    for (const c of conversations) {
-      const co = c.contact?.company?.trim();
-      if (co) set.add(co);
-    }
-    return Array.from(set).sort((a, b) => a.localeCompare(b));
-  }, [conversations]);
 
   const tagsById = useMemo(() => {
     const m = new Map<string, Tag>();
@@ -167,13 +185,21 @@ export function ConversationList({
       result = result.filter((c) => c.status === filter);
     }
 
-    // Contact-based filters (tags via OR logic, exact company match).
-    if (selectedTagIds.length > 0 || selectedCompany !== null) {
+    // WhatsApp channel filter keeps each connected business number isolated
+    // in the inbox while "All" continues to show every conversation.
+    if (selectedWhatsappConfigId !== null) {
+      result = result.filter(
+        (c) => c.whatsapp_config_id === selectedWhatsappConfigId,
+      );
+    }
+
+    // Contact-based filters (tags via OR logic).
+    if (selectedTagIds.length > 0) {
       result = result.filter((c) =>
         matchesContactFilters(c, {
           tagIds: selectedTagIds,
-          company: selectedCompany,
-        })
+          company: null,
+        }),
       );
     }
 
@@ -188,7 +214,7 @@ export function ConversationList({
     }
 
     return result;
-  }, [conversations, filter, search, selectedTagIds, selectedCompany]);
+  }, [conversations, filter, search, selectedTagIds, selectedWhatsappConfigId]);
 
   const toggleTag = useCallback((id: string) => {
     setSelectedTagIds((prev) =>
@@ -198,10 +224,17 @@ export function ConversationList({
 
   const clearContactFilters = useCallback(() => {
     setSelectedTagIds([]);
-    setSelectedCompany(null);
   }, []);
 
-  const hasContactFilters = selectedTagIds.length > 0 || selectedCompany !== null;
+  const handleWhatsappConfigChange = useCallback(
+    (configId: string | null) => {
+      setSelectedWhatsappConfigId(configId);
+      onWhatsappConfigChange?.(configId);
+    },
+    [onWhatsappConfigChange],
+  );
+
+  const hasContactFilters = selectedTagIds.length > 0;
 
   const handleSearchChange = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -305,51 +338,58 @@ export function ConversationList({
             </DropdownMenu>
           )}
 
-          {companies.length > 0 && (
+          {whatsappConfigs.length > 0 && (
             <DropdownMenu>
               <DropdownMenuTrigger
                 className={cn(
-                  "inline-flex max-w-40 items-center justify-center h-7 gap-1 px-2 text-xs rounded-md hover:bg-muted",
-                  selectedCompany
+                  "inline-flex max-w-52 items-center justify-center h-7 gap-1 px-2 text-xs rounded-md hover:bg-muted",
+                  selectedWhatsappConfigId
                     ? "text-primary"
-                    : "text-muted-foreground hover:text-foreground"
+                    : "text-muted-foreground hover:text-foreground",
                 )}
               >
-                <span className="truncate">{selectedCompany ?? t("company")}</span>
+                <span className="truncate">
+                  {selectedWhatsappConfigId
+                    ? `WhatsApp · ${whatsappConfigs.find((config) => config.id === selectedWhatsappConfigId)?.phone_number_id ?? ""}`
+                    : "WhatsApp"}
+                </span>
                 <ChevronDown className="h-3 w-3 shrink-0" />
               </DropdownMenuTrigger>
               <DropdownMenuContent
                 align="start"
-                className="max-h-64 w-56 border-border bg-popover"
+                className="max-h-64 w-64 border-border bg-popover"
               >
                 <DropdownMenuItem
-                  onClick={() => setSelectedCompany(null)}
+                  onClick={() => handleWhatsappConfigChange(null)}
                   className={cn(
                     "text-sm",
-                    selectedCompany === null
+                    selectedWhatsappConfigId === null
                       ? "text-primary"
-                      : "text-popover-foreground"
+                      : "text-popover-foreground",
                   )}
                 >
-                  {t("allCompanies")}
+                  All numbers
                 </DropdownMenuItem>
-                {companies.map((co) => (
+                {whatsappConfigs.map((config) => (
                   <DropdownMenuItem
-                    key={co}
-                    onClick={() => setSelectedCompany(co)}
+                    key={config.id}
+                    onClick={() => handleWhatsappConfigChange(config.id)}
                     className={cn(
                       "text-sm",
-                      selectedCompany === co
+                      selectedWhatsappConfigId === config.id
                         ? "text-primary"
-                        : "text-popover-foreground"
+                        : "text-popover-foreground",
                     )}
                   >
-                    <span className="truncate">{co}</span>
+                    <span className="truncate">
+                      WhatsApp · {config.phone_number_id}
+                    </span>
                   </DropdownMenuItem>
                 ))}
               </DropdownMenuContent>
             </DropdownMenu>
           )}
+
         </div>
 
         {hasContactFilters && (
@@ -371,15 +411,7 @@ export function ConversationList({
                 </button>
               );
             })}
-            {selectedCompany && (
-              <button
-                onClick={() => setSelectedCompany(null)}
-                className="inline-flex items-center gap-1 rounded-full bg-muted px-2 py-0.5 text-[11px] text-foreground hover:bg-muted/70"
-              >
-                <span className="max-w-24 truncate">{selectedCompany}</span>
-                <X className="h-3 w-3" />
-              </button>
-            )}
+
             <button
               onClick={clearContactFilters}
               className="px-1 text-[11px] text-muted-foreground hover:text-foreground"
