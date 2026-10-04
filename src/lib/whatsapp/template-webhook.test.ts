@@ -331,7 +331,7 @@ describe('handleTemplateWebhookChange — unknown template stub (#534)', () => {
     const message = String(warn.mock.calls[0][0]);
     expect(message).toContain('WABA WABA-NOBODY');
     expect(message).toContain('557');
-    expect(message).toContain('no whatsapp_config rows');
+    expect(message).toContain('no account(s) match that WABA id');
   });
 
   it('refuses to guess the tenant when several configs share the WABA id', async () => {
@@ -355,7 +355,7 @@ describe('handleTemplateWebhookChange — unknown template stub (#534)', () => {
       stub,
     );
     expect(calls.some((c) => c.insert)).toBe(false);
-    expect(String(warn.mock.calls[0][0])).toContain('2 whatsapp_config rows');
+    expect(String(warn.mock.calls[0][0])).toContain('2 account(s) match that WABA id');
   });
 
   it('inserts a stub with quality_score (and no status) for a 0-row quality update', async () => {
@@ -387,6 +387,7 @@ describe('handleTemplateWebhookChange — unknown template stub (#534)', () => {
       language: 'en_US',
       body_text: '',
       quality_score: 'RED',
+      waba_id: 'WABA-1',
     });
     // `status` is deliberately absent — the column default applies.
     expect(calls[2].insert).not.toHaveProperty('status');
@@ -442,8 +443,8 @@ describe('handleTemplateWebhookChange — unknown template stub (#534)', () => {
     expect(updates).toHaveLength(2);
     expect(updates[1].update).toEqual(updates[0].update);
     expect(updates[1].filter).toEqual({
-      column: 'meta_template_id',
-      value: '561',
+      column: 'waba_id',
+      value: 'WABA-1',
     });
     expect(warn).not.toHaveBeenCalled();
   });
