@@ -132,6 +132,7 @@ describe('createBroadcast recipient validation (#586)', () => {
     await expect(
       createBroadcast(db, 'acc', 'user', {
         templateName: 'promo',
+        whatsappConfigId: 'cfg-1',
         recipients: [{ to: '4155551212' }],
       })
     ).rejects.toMatchObject({ code: 'bad_request', status: 400 });
