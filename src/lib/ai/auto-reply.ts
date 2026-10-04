@@ -230,6 +230,7 @@ async function showTypingIndicator(
     const { phoneNumberId, accessToken } = await loadAccountMetaCredentials(
       db,
       accountId,
+      conversationId,
     )
     await sendTypingIndicator({
       phoneNumberId,
