@@ -12,7 +12,7 @@ import { SendMessageError } from './send-message';
 type ContactRow = { id: string; phone: string; name?: string | null };
 
 interface Script {
-  config?: { user_id: string } | null; // whatsapp_config.maybeSingle
+  config?: { id: string; user_id: string } | null; // whatsapp_config.maybeSingle
   contactCandidates?: ContactRow[]; // contacts .like (same every call)
   /** Per-call `.like` results — overrides contactCandidates. Lets a
    *  test simulate "miss, then hit" for the unique-race path. */
@@ -141,7 +141,7 @@ describe('resolveConversationByPhone', () => {
 
   it('fails with whatsapp_not_configured when no config owner exists', async () => {
     const db = makeDb({ config: null });
-    await resolveConversationByPhone(db, 'acct', '+14155550123').catch(
+    await resolveConversationByPhone(db, 'acct', '+14155550123', undefined, undefined, 'cfg-1').catch(
       (e: SendMessageError) => {
         expect(e.code).toBe('whatsapp_not_configured');
         expect(e.status).toBe(400);
@@ -154,14 +154,17 @@ describe('resolveConversationByPhone', () => {
 
   it('returns the existing contact + conversation without creating', async () => {
     const db = makeDb({
-      config: { user_id: 'owner-1' },
+      config: { id: 'cfg-1', user_id: 'owner-1' },
       contactCandidates: [{ id: 'c1', phone: '14155550123' }],
       existingConversation: { id: 'cv1' },
     });
     const res = await resolveConversationByPhone(
       db,
       'acct',
-      '+1 (415) 555-0123'
+      '+1 (415) 555-0123',
+      undefined,
+      undefined,
+      'cfg-1',
     );
     expect(res).toEqual({
       conversationId: 'cv1',
@@ -182,7 +185,8 @@ describe('resolveConversationByPhone', () => {
       db,
       'acct',
       '+14155550199',
-      'Jane'
+      'Jane',
+      'cfg-1',
     );
     expect(res).toEqual({
       conversationId: 'cv2',
@@ -201,7 +205,7 @@ describe('resolveConversationByPhone', () => {
       insertContactError: { code: '23505' },
       existingConversation: { id: 'cv-raced' },
     });
-    const res = await resolveConversationByPhone(db, 'acct', '+14155550123');
+    const res = await resolveConversationByPhone(db, 'acct', '+14155550123', undefined, undefined, 'cfg-1');
     expect(res.contactId).toBe('c-raced');
     expect(res.contactCreated).toBe(false);
     expect(res.conversationId).toBe('cv-raced');
