@@ -172,6 +172,9 @@ export function MessageThread({
   const { user } = useAuth();
   const { getPresence, getRow, now } = usePresence();
   const [loading, setLoading] = useState(false);
+  const [loadingOlder, setLoadingOlder] = useState(false);
+  const [hasOlderMessages, setHasOlderMessages] = useState(false);
+  const oldestMessageAtRef = useRef<string | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const [templateModalOpen, setTemplateModalOpen] = useState(false);
   const [profiles, setProfiles] = useState<Profile[]>([]);
@@ -304,14 +307,18 @@ export function MessageThread({
         .from("messages")
         .select("*")
         .eq("conversation_id", conversationId)
-        .order("created_at", { ascending: true });
+        .order("created_at", { ascending: false })
+        .limit(100);
 
       if (cancelled) return;
 
       if (error) {
         console.error("Failed to fetch messages:", error);
       } else {
-        onMessagesLoadedRef.current(data ?? []);
+        const rows = [...(data ?? [])].reverse();
+        oldestMessageAtRef.current = rows[0]?.created_at ?? null;
+        setHasOlderMessages((data?.length ?? 0) === 100);
+        onMessagesLoadedRef.current(rows);
       }
 
       if (!cancelled) setLoading(false);
@@ -325,6 +332,38 @@ export function MessageThread({
     // realtime is best-effort and any message events sent while the WS
     // was disconnected or throttled are otherwise lost.
   }, [conversationId, resyncToken]);
+
+  const loadOlderMessages = useCallback(async () => {
+    if (!conversationId || loadingOlder || !hasOlderMessages || !oldestMessageAtRef.current) {
+      return;
+    }
+
+    setLoadingOlder(true);
+    const supabase = createClient();
+    const before = oldestMessageAtRef.current;
+
+    const { data, error } = await supabase
+      .from("messages")
+      .select("*")
+      .eq("conversation_id", conversationId)
+      .lt("created_at", before)
+      .order("created_at", { ascending: false })
+      .limit(100);
+
+    if (error) {
+      console.error("Failed to load older messages:", error);
+      setLoadingOlder(false);
+      return;
+    }
+
+    const older = [...(data ?? [])].reverse();
+    if (older.length > 0) {
+      oldestMessageAtRef.current = older[0].created_at;
+      onMessagesLoadedRef.current((current) => [...older, ...current]);
+    }
+    setHasOlderMessages((data?.length ?? 0) === 100);
+    setLoadingOlder(false);
+  }, [conversationId, loadingOlder, hasOlderMessages]);
 
   // Reactions fetch — pulls the current state from the DB. Kept separate
   // from the channel subscription below so a `resyncToken` bump just
@@ -1085,6 +1124,18 @@ export function MessageThread({
 
       {/* Messages Area */}
       <div ref={scrollRef} className="flex-1 overflow-y-auto px-4 py-4">
+        {!loading && hasOlderMessages && (
+          <div className="mb-3 flex justify-center">
+            <button
+              type="button"
+              onClick={loadOlderMessages}
+              disabled={loadingOlder}
+              className="rounded-full border border-border bg-card px-3 py-1.5 text-xs font-medium text-muted-foreground hover:bg-muted hover:text-foreground disabled:opacity-60"
+            >
+              {loadingOlder ? "Loading…" : "Load older messages"}
+            </button>
+          </div>
+        )}
         {loading ? (
           <div className="flex items-center justify-center py-12">
             <div className="h-5 w-5 animate-spin rounded-full border-2 border-primary border-t-transparent" />
