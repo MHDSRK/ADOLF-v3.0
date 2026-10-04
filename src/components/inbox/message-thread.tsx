@@ -354,8 +354,8 @@ export function MessageThread({
 
     if (error) {
       console.error("Failed to load older messages:", error);
-      setLoadingOlder(false);
       loadingOlderRef.current = false;
+      setLoadingOlder(false);
       return;
     }
 
@@ -365,8 +365,10 @@ export function MessageThread({
       onMessagesLoadedRef.current([...older, ...messages]);
     }
     setHasOlderMessages((data?.length ?? 0) === 100);
-    setLoadingOlder(false);
-    loadingOlderRef.current = false;
+    requestAnimationFrame(() => {
+      loadingOlderRef.current = false;
+      setLoadingOlder(false);
+    });
   }, [conversationId, loadingOlder, hasOlderMessages, messages]);
 
   // Reactions fetch — pulls the current state from the DB. Kept separate
