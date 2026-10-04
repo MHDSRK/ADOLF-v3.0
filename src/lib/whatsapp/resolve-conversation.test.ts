@@ -148,13 +148,13 @@ describe('resolveConversationByPhone', () => {
       }
     );
     await expect(
-      resolveConversationByPhone(db, 'acct', '+14155550123')
+      resolveConversationByPhone(db, 'acct', '+14155550123', undefined, 'cfg-1')
     ).rejects.toBeInstanceOf(SendMessageError);
   });
 
   it('returns the existing contact + conversation without creating', async () => {
     const db = makeDb({
-      config: { id: 'cfg-1', user_id: 'owner-1' },
+      config: { user_id: 'owner-1' },
       contactCandidates: [{ id: 'c1', phone: '14155550123' }],
       existingConversation: { id: 'cv1' },
     });
@@ -162,7 +162,6 @@ describe('resolveConversationByPhone', () => {
       db,
       'acct',
       '+1 (415) 555-0123',
-      undefined,
       undefined,
       'cfg-1',
     );
@@ -205,7 +204,7 @@ describe('resolveConversationByPhone', () => {
       insertContactError: { code: '23505' },
       existingConversation: { id: 'cv-raced' },
     });
-    const res = await resolveConversationByPhone(db, 'acct', '+14155550123', undefined, undefined, 'cfg-1');
+    const res = await resolveConversationByPhone(db, 'acct', '+14155550123', undefined, 'cfg-1');
     expect(res.contactId).toBe('c-raced');
     expect(res.contactCreated).toBe(false);
     expect(res.conversationId).toBe('cv-raced');
