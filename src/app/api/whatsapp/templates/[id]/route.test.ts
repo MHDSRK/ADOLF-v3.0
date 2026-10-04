@@ -22,6 +22,7 @@ const TEMPLATE = {
   name: 'order_update',
   status: 'APPROVED',
   meta_template_id: 'meta-1',
+  waba_id: 'WABA-1',
   language: 'en_US',
 }
 
