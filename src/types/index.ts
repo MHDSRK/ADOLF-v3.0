@@ -347,6 +347,8 @@ export interface TemplateSampleValues {
 }
 
 export interface MessageTemplate {
+  /** WhatsApp connection/WABA whose template catalog owns this row. */
+  whatsapp_config_id?: string | null;
   id: string;
   user_id: string;
   name: string;
