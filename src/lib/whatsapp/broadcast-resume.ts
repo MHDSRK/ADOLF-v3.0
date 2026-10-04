@@ -232,7 +232,8 @@ export async function planBroadcastResume(
     db,
     accountId,
     broadcast.template_name,
-    broadcast.template_language
+    broadcast.template_language,
+    broadcast.whatsapp_config_id,
   );
   if (resolvedTemplate.malformed) {
     throw new BroadcastError(
