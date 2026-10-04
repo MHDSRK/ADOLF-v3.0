@@ -174,7 +174,7 @@ describe('resolveConversationByPhone', () => {
 
   it('creates contact + conversation when none exist', async () => {
     const db = makeDb({
-      config: { user_id: 'owner-1' },
+      config: { id: 'cfg-1', user_id: 'owner-1' },
       contactCandidates: [],
       insertedContactId: 'c2',
       existingConversation: null,
