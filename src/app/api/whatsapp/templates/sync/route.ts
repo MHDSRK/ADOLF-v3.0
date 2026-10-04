@@ -239,7 +239,7 @@ export async function POST(request: Request) {
         // post-017, so an INSERT without it errors.
         account_id: accountId,
         user_id: userId,
-        whatsapp_config_id: config.id,
+        waba_id: config.waba_id,
         name: t.name,
         category: normalizeCategory(t.category),
         language: t.language,
@@ -260,7 +260,7 @@ export async function POST(request: Request) {
         .from('message_templates')
         .select('id')
         .eq('account_id', accountId)
-        .eq('whatsapp_config_id', config.id)
+        .eq('waba_id', config.waba_id)
         .eq('name', t.name)
         .eq('language', t.language)
         .maybeSingle()
