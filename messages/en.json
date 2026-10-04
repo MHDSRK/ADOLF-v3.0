@@ -152,8 +152,6 @@
       "clearAll": "Clear all",
       "noConversations": "No conversations found",
       "noMessagesYet": "No messages yet",
-      "loadOlder": "Load older messages",
-      "loadingOlder": "Loading…",
       "unknown": "Unknown"
     },
     "messageThread": {
@@ -174,6 +172,8 @@
       "noTeammates": "No teammates available",
       "me": " (me)",
       "noMessagesYet": "No messages yet",
+      "loadOlder": "Load older messages",
+      "loadingOlder": "Loading…",
       "sendTemplateHint": "Send a template to start the conversation",
       "selectConversation": "Select a conversation",
       "selectConversationHint": "Choose a conversation from the left to start messaging",
