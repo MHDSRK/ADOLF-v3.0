@@ -226,6 +226,7 @@ export async function createBroadcast(
       // Frozen per-recipient params (migration 038) — without them a
       // resume of this broadcast has no way to reconstruct {{1}}.
       p_template_params: deduped.map((r) => r.params),
+      p_whatsapp_config_id: whatsappConfigId,
     }
   );
   if (createErr || !createdRows || createdRows.length === 0) {
