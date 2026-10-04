@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { useAuth } from '@/hooks/use-auth';
@@ -45,9 +45,33 @@ export default function NewBroadcastPage() {
   >({});
   const [headerMediaUrl, setHeaderMediaUrl] = useState('');
   const [name, setName] = useState('');
+  const [whatsappConfigs, setWhatsappConfigs] = useState<{ id: string; phone_number_id: string; status: string }[]>([]);
+  const [whatsappConfigId, setWhatsappConfigId] = useState('');
+
+  useEffect(() => {
+    if (!accountId) return;
+    const supabase = createClient();
+    void supabase
+      .from('whatsapp_config')
+      .select('id, phone_number_id, status')
+      .eq('account_id', accountId)
+      .order('created_at', { ascending: true })
+      .then(({ data }) => {
+        const rows = data ?? [];
+        setWhatsappConfigs(rows);
+        const connected = rows.filter((row) => row.status === 'connected');
+        if (!whatsappConfigId && connected.length === 1) {
+          setWhatsappConfigId(connected[0].id);
+        }
+      });
+  }, [accountId, whatsappConfigId]);
 
   async function handleSend() {
     if (!template) return;
+    if (!whatsappConfigId) {
+      toast.error('Select the WhatsApp number to send this broadcast from.');
+      return;
+    }
 
     try {
       const broadcastId = await createAndSendBroadcast({
@@ -62,6 +86,7 @@ export default function NewBroadcastPage() {
         },
         variables,
         headerMediaUrl,
+        whatsappConfigId,
       });
       router.push(`/broadcasts/${broadcastId}`);
     } catch (err) {
@@ -100,11 +125,16 @@ export default function NewBroadcastPage() {
       toast.error(t('toastNotLinked'));
       return;
     }
+    if (!whatsappConfigId) {
+      toast.error('Select the WhatsApp number for this broadcast.');
+      return;
+    }
 
     const { error } = await supabase.from('broadcasts').insert({
       user_id: user.id,
       account_id: accountId,
       name: name.trim(),
+      whatsapp_config_id: whatsappConfigId,
       template_name: template.name,
       template_language: template.language ?? 'en_US',
       template_variables: variables,
@@ -137,6 +167,33 @@ export default function NewBroadcastPage() {
         <p className="mt-1 text-sm text-muted-foreground">
           {t('subtitle')}
         </p>
+      </div>
+
+      <div className="rounded-lg border border-border bg-card p-4">
+        <label htmlFor="whatsapp-config" className="mb-2 block text-sm font-medium">
+          WhatsApp sending number
+        </label>
+        <select
+          id="whatsapp-config"
+          value={whatsappConfigId}
+          onChange={(event) => setWhatsappConfigId(event.target.value)}
+          className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+          disabled={isProcessing}
+        >
+          <option value="">Select a connected number</option>
+          {whatsappConfigs
+            .filter((config) => config.status === 'connected')
+            .map((config) => (
+              <option key={config.id} value={config.id}>
+                {config.phone_number_id}
+              </option>
+            ))}
+        </select>
+        {whatsappConfigs.filter((config) => config.status === 'connected').length === 0 && (
+          <p className="mt-2 text-sm text-muted-foreground">
+            Connect a WhatsApp number in Settings before starting a broadcast.
+          </p>
+        )}
       </div>
 
       {/* Step Indicator */}
