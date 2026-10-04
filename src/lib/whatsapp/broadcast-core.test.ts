@@ -171,6 +171,7 @@ describe('createBroadcast atomicity (#370)', () => {
     await expect(
       createBroadcast(db, 'acc', 'user', {
         templateName: 'promo',
+        whatsappConfigId: 'cfg-1',
         recipients: [{ to: '+14155550123' }],
       })
     ).rejects.toBeInstanceOf(BroadcastError);
