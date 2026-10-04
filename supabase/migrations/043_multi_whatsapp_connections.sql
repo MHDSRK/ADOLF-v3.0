@@ -85,3 +85,73 @@ COMMENT ON COLUMN conversations.whatsapp_config_id IS
 
 COMMENT ON COLUMN broadcasts.whatsapp_config_id IS
   'WhatsApp connection selected for this outbound broadcast.';
+
+
+-- Extend the existing atomic broadcast-creation RPC with a selected
+-- WhatsApp connection. Keep the old 8-argument overload intact for
+-- callers that still create legacy broadcasts.
+CREATE OR REPLACE FUNCTION public.create_broadcast_with_recipients(
+  p_account_id UUID,
+  p_user_id UUID,
+  p_name TEXT,
+  p_template_name TEXT,
+  p_template_language TEXT,
+  p_total_recipients INTEGER,
+  p_contact_ids UUID[],
+  p_template_params JSONB[],
+  p_whatsapp_config_id UUID
+)
+RETURNS TABLE(broadcast_id UUID, recipient_id UUID, contact_id UUID)
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  v_broadcast_id UUID;
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1
+    FROM whatsapp_config
+    WHERE id = p_whatsapp_config_id
+      AND account_id = p_account_id
+      AND status = 'connected'
+  ) THEN
+    RAISE EXCEPTION 'WhatsApp connection not found or disconnected';
+  END IF;
+
+  INSERT INTO broadcasts (
+    account_id, user_id, name, template_name,
+    template_language, template_params, status,
+    total_recipients, whatsapp_config_id
+  )
+  VALUES (
+    p_account_id, p_user_id, p_name, p_template_name,
+    p_template_language, p_template_params, 'sending',
+    p_total_recipients, p_whatsapp_config_id
+  )
+  RETURNING id INTO v_broadcast_id;
+
+  RETURN QUERY
+  WITH ins AS (
+    INSERT INTO broadcast_recipients (broadcast_id, contact_id, status)
+    SELECT v_broadcast_id, cid, 'pending'
+    FROM unnest(p_contact_ids) AS cid
+    RETURNING id, broadcast_recipients.contact_id
+  )
+  SELECT v_broadcast_id, ins.id, ins.contact_id
+  FROM ins;
+END;
+$$;
+
+REVOKE ALL ON FUNCTION public.create_broadcast_with_recipients(
+  UUID, UUID, TEXT, TEXT, TEXT, INTEGER, UUID[], JSONB[], UUID
+) FROM PUBLIC;
+REVOKE ALL ON FUNCTION public.create_broadcast_with_recipients(
+  UUID, UUID, TEXT, TEXT, TEXT, INTEGER, UUID[], JSONB[], UUID
+) FROM anon;
+REVOKE ALL ON FUNCTION public.create_broadcast_with_recipients(
+  UUID, UUID, TEXT, TEXT, TEXT, INTEGER, UUID[], JSONB[], UUID
+) FROM authenticated;
+GRANT EXECUTE ON FUNCTION public.create_broadcast_with_recipients(
+  UUID, UUID, TEXT, TEXT, TEXT, INTEGER, UUID[], JSONB[], UUID
+) TO service_role;
