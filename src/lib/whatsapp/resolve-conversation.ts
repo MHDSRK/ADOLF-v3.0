@@ -217,6 +217,7 @@ async function findOrCreateConversationRow(
         .select('id')
         .eq('account_id', accountId)
         .eq('contact_id', contactId)
+        .eq('whatsapp_config_id', whatsappConfigId)
         .order('created_at', { ascending: true })
         .limit(1);
       if (raced && raced.length > 0) {
