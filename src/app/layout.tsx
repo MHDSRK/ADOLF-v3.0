@@ -32,6 +32,12 @@ export const metadata: Metadata = {
   },
   icons: {
     icon: [{ url: "/icon" }],
+    apple: [{ url: "/apple-icon.svg" }],
+  },
+  appleWebApp: {
+    capable: true,
+    title: "ADOLF v3.0",
+    statusBarStyle: "black-translucent",
   },
   formatDetection: {
     email: false,
