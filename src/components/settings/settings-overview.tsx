@@ -56,7 +56,6 @@ export function SettingsOverview({
     if (!user || !accountId) return;
     let cancelled = false;
     const supabase = createClient();
-    const userId = user.id;
     const acctId = accountId;
 
     // Cheap counts — resolve fast, render immediately.
@@ -73,7 +72,7 @@ export function SettingsOverview({
           supabase
             .from('message_templates')
             .select('id', { count: 'exact', head: true })
-            .eq('user_id', userId),
+            .eq('account_id', acctId),
           supabase
             .from('message_templates')
             .select('id', { count: 'exact', head: true })
@@ -125,12 +124,12 @@ export function SettingsOverview({
           .from('whatsapp_config')
           .select('phone_number_id')
           .eq('account_id', acctId)
-          .maybeSingle(),
+          .limit(1),
         fetch('/api/whatsapp/config', { cache: 'no-store' }).then((r) => r.json()),
       ]);
       if (cancelled) return;
       setWhatsapp({
-        configured: row.status === 'fulfilled' && !!row.value.data?.phone_number_id,
+        configured: row.status === 'fulfilled' && (row.value.data?.length ?? 0) > 0,
         connected: health.status === 'fulfilled' && !!health.value?.connected,
       });
       setWhatsappLoading(false);
