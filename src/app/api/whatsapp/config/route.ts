@@ -149,8 +149,6 @@ export async function GET(request: Request) {
       )
     }
 
-    // Try to decrypt the stored token with the current ENCRYPTION_KEY.
-    // If this fails, the key changed (or was never consistent across envs).
     let accessToken: string
     try {
       accessToken = decrypt(config.access_token)
@@ -168,7 +166,6 @@ export async function GET(request: Request) {
       )
     }
 
-    // Validate credentials against Meta
     let phoneInfo
     try {
       phoneInfo = await verifyPhoneNumber({
@@ -192,11 +189,6 @@ export async function GET(request: Request) {
       )
     }
 
-    // Credentials work. Also report whether the WABA is subscribed to
-    // this app — valid credentials with an unsubscribed WABA is exactly
-    // the "connected but no messages arrive" state (issue #505). Never
-    // fatal: the token may lack whatsapp_business_management and still
-    // be fine for sending.
     let wabaSubscription: {
       checked: boolean
       subscribed: boolean | null
@@ -237,17 +229,6 @@ export async function GET(request: Request) {
   }
 }
 
-/**
- * POST /api/whatsapp/config
- *
- * Saves or updates the WhatsApp config for the authenticated user.
- * Verifies credentials with Meta first, then encrypts and stores.
- *
- * Every Meta failure answers `{ error, meta: { code, subcode,
- * fbtrace_id, step, field, message } }` — `error` is the actionable
- * text, `meta` is what to quote to Meta support. 400 = fix it on the
- * form (token / ids / PIN), 502 = Meta has to change something.
- */
 export async function POST(request: Request) {
   try {
     const supabase = await createClient()
@@ -279,10 +260,6 @@ export async function POST(request: Request) {
       )
     }
 
-    // Meta ids are decimal digit strings. Catch the classic paste
-    // mistakes (the +phone number, a display name, a URL) here with a
-    // named field, instead of letting Meta answer "(#100) Unsupported
-    // get request" for a value we could have rejected up front.
     if (!isNumericMetaId(phone_number_id)) {
       return NextResponse.json(
         {
@@ -314,8 +291,6 @@ export async function POST(request: Request) {
       }
     }
 
-    // A phone_number_id is globally unique. Check it before calling
-    // Meta so duplicate connection attempts fail before external side effects.
     const { data: claims, error: claimedError } = await supabaseAdmin()
       .from('whatsapp_config')
       .select('id, account_id')
@@ -340,7 +315,6 @@ export async function POST(request: Request) {
       )
     }
 
-    // Verify credentials with Meta BEFORE saving
     let phoneInfo
     try {
       phoneInfo = await verifyPhoneNumber({
@@ -351,10 +325,6 @@ export async function POST(request: Request) {
       return metaFailure(err, 'verify_number', metaCtx)
     }
 
-    // The number resolves — now make sure it lives under the WABA the
-    // user typed. A foreign-but-valid WABA ID used to save fine and
-    // subscribe the *wrong* account, surfacing days later as a webhook
-    // that never fires. Failing here names the mismatch instead.
     if (waba_id) {
       let wabaNumbers
       try {
@@ -384,8 +354,11 @@ export async function POST(request: Request) {
       }
     }
 
-    // Resolve the row being edited. Without config_id, preserve the
-    // old API contract only while the account still has one connection.
+    // An explicit config_id always means "edit this exact connection".
+    // Omitting config_id means "create a new connection". Never infer
+    // edit-vs-create from the number of rows in the account; that was
+    // the single-number behavior that overwrote the first connection
+    // when a second number was added.
     let existing: {
       id: string
       registered_at: string | null
@@ -401,23 +374,15 @@ export async function POST(request: Request) {
         .eq('account_id', accountId)
         .maybeSingle()
       existing = data
-    } else {
-      const { data: rows } = await supabase
-        .from('whatsapp_config')
-        .select('id, registered_at, phone_number_id, verify_token')
-        .eq('account_id', accountId)
-        .order('created_at', { ascending: true })
-        .limit(2)
-      if ((rows ?? []).length > 1) {
+
+      if (!existing) {
         return NextResponse.json(
-          { error: 'config_id is required when this account has multiple WhatsApp connections.' },
-          { status: 409 },
+          { error: 'WhatsApp connection not found for this account.' },
+          { status: 404 },
         )
       }
-      existing = rows?.[0] ?? null
     }
 
-    // Encrypt sensitive tokens before storing
     let encryptedAccessToken: string
     let encryptedVerifyToken: string | null
     try {
@@ -442,33 +407,14 @@ export async function POST(request: Request) {
       existing?.phone_number_id === phone_number_id &&
       existing?.registered_at != null
 
-    // Step 1: register the phone number for inbound webhooks.
-    //
-    // Attempted on first save AND whenever the user supplies a fresh
-    // PIN (e.g. they rotated the 2FA PIN in Meta Manager). Skipped
-    // when the same number is already registered and no PIN was
-    // supplied — re-registering an already-active number with a
-    // stale PIN would actually fail and undo the active subscription.
     let registeredAt: string | null = existing?.registered_at ?? null
     let registrationError: string | null = null
     let registrationMeta: ReturnType<typeof metaErrorPayload> | null = null
-    // True when registration was deliberately skipped because no PIN
-    // was supplied (see below). Distinct from registrationError — this
-    // is not a failure, just an incomplete-but-valid save.
     let registrationSkipped = false
 
     const needsRegistration = !sameNumber || (typeof pin === 'string' && pin.length > 0)
     if (needsRegistration) {
       if (!pin) {
-        // No PIN provided. Meta TEST numbers (Developer Console) are
-        // pre-registered by Meta and expose no two-step verification
-        // PIN to set, so requiring one made them impossible to connect
-        // (issue #242). The /register + PIN step only matters for
-        // production numbers under a shared WABA (issue #136), so treat
-        // it as best-effort: skip it, save the (already Meta-verified)
-        // credentials as connected, and leave registered_at null. The
-        // UI surfaces a separate "Not registered" banner with a path to
-        // add a PIN later for users who do need inbound webhook routing.
         registrationSkipped = true
       } else {
         try {
@@ -483,25 +429,10 @@ export async function POST(request: Request) {
           registrationError = explained.summary
           registrationMeta = metaErrorPayload(explained)
           console.error('Phone number /register failed:', explained.metaMessage, registrationMeta)
-          // We deliberately fall through and still save the row so the
-          // user can retry without re-entering everything. The UI
-          // surfaces `last_registration_error` so they see WHY it's
-          // not actually live yet.
         }
       }
     }
 
-    // Step 2: subscribe the WABA to this app. Idempotent on Meta's
-    // side, so we call on every save and persist the timestamp.
-    // Skipped only when there's no waba_id (legacy rows from before
-    // we required it).
-    //
-    // A failure here used to be swallowed with a console.warn, which
-    // left the user with a green "connected" banner and a webhook that
-    // never fired. Without this subscription Meta delivers nothing, so
-    // treat it as a failed connect and say why (issue #505). Nothing
-    // has been written yet, so the user just fixes the cause and saves
-    // again.
     let subscribedAppsAt: string | null = null
     if (waba_id) {
       try {
@@ -515,9 +446,6 @@ export async function POST(request: Request) {
       }
     }
 
-    // Persist everything in one shot. If /register failed we still
-    // store the credentials and the error so the UI can guide the
-    // user through a retry.
     const baseRow = {
       phone_number_id,
       waba_id: waba_id || null,
@@ -548,10 +476,6 @@ export async function POST(request: Request) {
         )
       }
     } else {
-      // Insert with both columns: `account_id` is the tenancy key
-      // (NOT NULL post-017, UNIQUE so duplicates trip the constraint
-      // up-front), `user_id` is the audit column identifying which
-      // member of the account saved the config.
       const { data: insertedConfig, error: insertError } = await supabase
         .from('whatsapp_config')
         .insert({
@@ -573,9 +497,6 @@ export async function POST(request: Request) {
     }
 
     if (registrationError) {
-      // Save succeeded but the number isn't actually live. Return
-      // 200 with a structured error so the UI can show the specific
-      // remediation step instead of a generic toast.
       return NextResponse.json({
         success: false,
         saved: true,
@@ -592,10 +513,6 @@ export async function POST(request: Request) {
       success: true,
       saved: true,
       registered: registeredAt != null,
-      // Credentials are valid and saved, but inbound webhook
-      // registration was skipped because no PIN was supplied (e.g. a
-      // Meta test number). The UI shows the "Not registered" banner
-      // rather than claiming the number is fully live.
       registration_skipped: registrationSkipped,
       phone_info: phoneInfo,
       config_id: savedConfigId,
@@ -606,13 +523,6 @@ export async function POST(request: Request) {
   }
 }
 
-/**
- * DELETE /api/whatsapp/config
- *
- * Removes the authenticated user's WhatsApp configuration row.
- * Used by the "Reset Configuration" button to recover from a corrupted
- * encrypted token (mismatched ENCRYPTION_KEY across environments).
- */
 export async function DELETE(request: Request) {
   try {
     const supabase = await createClient()
