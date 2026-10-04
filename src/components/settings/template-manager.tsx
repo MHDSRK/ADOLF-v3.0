@@ -195,7 +195,7 @@ export function TemplateManager() {
     const client = createClient();
     void client
       .from('whatsapp_config')
-      .select('id, phone_number_id, status')
+      .select('id, phone_number_id, status, waba_id')
       .eq('account_id', accountId)
       .order('created_at', { ascending: true })
       .then(({ data }) => {
