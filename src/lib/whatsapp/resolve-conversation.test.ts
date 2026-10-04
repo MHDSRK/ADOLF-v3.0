@@ -141,7 +141,7 @@ describe('resolveConversationByPhone', () => {
 
   it('fails with whatsapp_not_configured when no config owner exists', async () => {
     const db = makeDb({ config: null });
-    await resolveConversationByPhone(db, 'acct', '+14155550123', undefined, undefined, 'cfg-1').catch(
+    await resolveConversationByPhone(db, 'acct', '+14155550123', undefined, 'cfg-1').catch(
       (e: SendMessageError) => {
         expect(e.code).toBe('whatsapp_not_configured');
         expect(e.status).toBe(400);
