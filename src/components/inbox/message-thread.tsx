@@ -175,6 +175,7 @@ export function MessageThread({
   const [loadingOlder, setLoadingOlder] = useState(false);
   const [hasOlderMessages, setHasOlderMessages] = useState(false);
   const oldestMessageAtRef = useRef<string | null>(null);
+  const loadingOlderRef = useRef(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const [templateModalOpen, setTemplateModalOpen] = useState(false);
   const [profiles, setProfiles] = useState<Profile[]>([]);
@@ -339,6 +340,7 @@ export function MessageThread({
     }
 
     setLoadingOlder(true);
+    loadingOlderRef.current = true;
     const supabase = createClient();
     const before = oldestMessageAtRef.current;
 
@@ -353,17 +355,19 @@ export function MessageThread({
     if (error) {
       console.error("Failed to load older messages:", error);
       setLoadingOlder(false);
+      loadingOlderRef.current = false;
       return;
     }
 
     const older = [...(data ?? [])].reverse();
     if (older.length > 0) {
       oldestMessageAtRef.current = older[0].created_at;
-      onMessagesLoadedRef.current((current) => [...older, ...current]);
+      onMessagesLoadedRef.current([...older, ...messages]);
     }
     setHasOlderMessages((data?.length ?? 0) === 100);
     setLoadingOlder(false);
-  }, [conversationId, loadingOlder, hasOlderMessages]);
+    loadingOlderRef.current = false;
+  }, [conversationId, loadingOlder, hasOlderMessages, messages]);
 
   // Reactions fetch — pulls the current state from the DB. Kept separate
   // from the channel subscription below so a `resyncToken` bump just
@@ -497,6 +501,7 @@ export function MessageThread({
 
   // Auto-scroll to bottom on new messages
   useEffect(() => {
+    if (loadingOlderRef.current) return;
     if (scrollRef.current) {
       const el = scrollRef.current;
       el.scrollTop = el.scrollHeight;
