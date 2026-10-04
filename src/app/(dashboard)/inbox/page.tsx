@@ -202,11 +202,13 @@ function InboxPageInner() {
 
       const { data } = await supabase
         .from("whatsapp_config")
-        .select("status")
+        .select("id")
         .eq("account_id", accountId)
+        .eq("status", "connected")
+        .limit(1)
         .maybeSingle();
 
-      setWhatsappConnected(data?.status === "connected");
+      setWhatsappConnected(Boolean(data));
     };
 
     checkConnection();
