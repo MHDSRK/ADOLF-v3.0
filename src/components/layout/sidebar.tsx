@@ -192,7 +192,7 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
               <img src="/adolf-v3-mark.svg" alt="" className="h-8 w-8 rounded-lg" />
             </div>
             <span className="text-sm font-semibold text-foreground">
-              Adolf-V3.0
+              ADOLF v3.0
             </span>
           </Link>
           <button
@@ -206,8 +206,8 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
         </div>
 
         {/* Main navigation */}
-        <nav className="flex-1 overflow-y-auto px-3 py-4">
-          <ul className="flex flex-col gap-1">
+        <nav className="flex flex-1 flex-col overflow-y-auto px-3 py-3">
+          <ul className="flex flex-col gap-0.5">
             {navItems.map((item) => {
               const isActive =
                 pathname === item.href ||
@@ -268,9 +268,9 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
             })}
           </ul>
 
-          <div className="my-4 border-t border-border" />
-
-          <ul className="flex flex-col gap-1">
+          <div className="mt-auto pt-3">
+            <div className="mb-2 border-t border-border" />
+            <ul className="flex flex-col gap-0.5">
             {bottomNavItems.map((item) => {
               const isActive = pathname.startsWith(item.href);
               return (
@@ -278,7 +278,7 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
                   <Link
                     href={item.href}
                     className={cn(
-                      "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors lg:py-2",
+                      "flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors lg:py-1.5",
                       isActive
                         ? "bg-primary/10 text-primary"
                         : "text-muted-foreground hover:bg-muted hover:text-foreground",
@@ -290,7 +290,8 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
                 </li>
               );
             })}
-          </ul>
+            </ul>
+          </div>
         </nav>
 
         {/* User section */}
