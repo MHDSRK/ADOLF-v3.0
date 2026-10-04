@@ -421,6 +421,8 @@ export interface Broadcast {
   name: string;
   template_name: string;
   template_language: string;
+  /** WhatsApp connection used to send this campaign. */
+  whatsapp_config_id?: string | null;
   template_variables?: Record<string, unknown>;
   audience_filter?: Record<string, unknown>;
   scheduled_at?: string;
