@@ -33,6 +33,18 @@ vi.mock('@/lib/whatsapp/meta-api', () => ({
 vi.mock('./admin-client', () => ({
   supabaseAdmin: () => ({
     from: (table: string) => {
+      if (table === 'ai_reply_claims') {
+        const chain = {
+          insert: () => chain,
+          update: () => chain,
+          select: () => chain,
+          eq: () => chain,
+          lt: () => chain,
+          maybeSingle: () =>
+            Promise.resolve({ data: { id: 'ai-claim-1' }, error: null }),
+        }
+        return chain
+      }
       if (table === 'automations') {
         // .select().eq().eq().in().limit() → active auto-responders
         const chain = {
