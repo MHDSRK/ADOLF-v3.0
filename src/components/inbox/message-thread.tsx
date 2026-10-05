@@ -135,9 +135,9 @@ function groupMessagesByDate(messages: Message[]) {
 }
 
 const STATUS_OPTIONS: { label: string; value: ConversationStatus; color: string }[] = [
-  { label: "Open", value: "open", color: "text-primary" },
-  { label: "Pending", value: "pending", color: "text-amber-400" },
-  { label: "Closed", value: "closed", color: "text-muted-foreground" },
+  { label: "Open", value: "open", color: "text-blue-500" },
+  { label: "Pending", value: "pending", color: "text-yellow-500" },
+  { label: "Closed", value: "closed", color: "text-green-500" },
 ];
 
 /**
@@ -344,12 +344,22 @@ export function MessageThread({
     (async () => {
       setLoading(true);
 
-      const { data, error } = await supabase
+      const historyCutoff =
+        (conversation as Conversation & { message_history_cutoff_at?: string | null })
+          .message_history_cutoff_at ?? null;
+
+      let query = supabase
         .from("messages")
         .select("*")
         .eq("conversation_id", conversationId)
         .order("created_at", { ascending: false })
         .limit(100);
+
+      if (historyCutoff) {
+        query = query.gte("created_at", historyCutoff);
+      }
+
+      const { data, error } = await query;
 
       if (cancelled) return;
 
@@ -358,7 +368,9 @@ export function MessageThread({
       } else {
         const rows = [...(data ?? [])].reverse();
         oldestMessageAtRef.current = rows[0]?.created_at ?? null;
-        setHasOlderMessages((data?.length ?? 0) === 100);
+        // History is intentionally bounded by the conversation cutoff.
+        // Do not expose a control that can load messages before the cutoff.
+        setHasOlderMessages(false);
         onMessagesLoadedRef.current(rows);
       }
 
@@ -373,43 +385,6 @@ export function MessageThread({
     // realtime is best-effort and any message events sent while the WS
     // was disconnected or throttled are otherwise lost.
   }, [conversationId, resyncToken]);
-
-  const loadOlderMessages = useCallback(async () => {
-    if (!conversationId || loadingOlder || !hasOlderMessages || !oldestMessageAtRef.current) {
-      return;
-    }
-
-    setLoadingOlder(true);
-    loadingOlderRef.current = true;
-    const supabase = createClient();
-    const before = oldestMessageAtRef.current;
-
-    const { data, error } = await supabase
-      .from("messages")
-      .select("*")
-      .eq("conversation_id", conversationId)
-      .lt("created_at", before)
-      .order("created_at", { ascending: false })
-      .limit(100);
-
-    if (error) {
-      console.error("Failed to load older messages:", error);
-      loadingOlderRef.current = false;
-      setLoadingOlder(false);
-      return;
-    }
-
-    const older = [...(data ?? [])].reverse();
-    if (older.length > 0) {
-      oldestMessageAtRef.current = older[0].created_at;
-      onMessagesLoadedRef.current([...older, ...messages]);
-    }
-    setHasOlderMessages((data?.length ?? 0) === 100);
-    requestAnimationFrame(() => {
-      loadingOlderRef.current = false;
-      setLoadingOlder(false);
-    });
-  }, [conversationId, loadingOlder, hasOlderMessages, messages]);
 
   // Reactions fetch — pulls the current state from the DB. Kept separate
   // from the channel subscription below so a `resyncToken` bump just
@@ -1180,18 +1155,6 @@ export function MessageThread({
 
       {/* Messages Area */}
       <div ref={scrollRef} className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-4">
-        {!loading && hasOlderMessages && (
-          <div className="mb-3 flex justify-center">
-            <button
-              type="button"
-              onClick={loadOlderMessages}
-              disabled={loadingOlder}
-              className="rounded-full border border-border bg-card px-3 py-1.5 text-xs font-medium text-muted-foreground hover:bg-muted hover:text-foreground disabled:opacity-60"
-            >
-              {loadingOlder ? t("loadingOlder") : t("loadOlder")}
-            </button>
-          </div>
-        )}
         {loading ? (
           <div className="flex items-center justify-center py-12">
             <div className="h-5 w-5 animate-spin rounded-full border-2 border-primary border-t-transparent" />
