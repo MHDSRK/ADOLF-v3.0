@@ -39,7 +39,6 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { MessageBubble } from "./message-bubble";
 import { MessageActions } from "./message-actions";
 import { MediaLightbox } from "./media-lightbox";
@@ -360,10 +359,6 @@ export function MessageThread({
         console.error("Failed to fetch messages:", error);
       } else {
         const rows = [...(data ?? [])].reverse();
-        oldestMessageAtRef.current = rows[0]?.created_at ?? null;
-        // History is intentionally bounded by the conversation cutoff.
-        // Do not expose a control that can load messages before the cutoff.
-        setHasOlderMessages(false);
         onMessagesLoadedRef.current(rows);
       }
 
