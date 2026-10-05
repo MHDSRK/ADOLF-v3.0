@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { requireRole, toErrorResponse } from '@/lib/auth/account'
-import { supabaseAdmin } from '@/lib/supabase/admin'
+import { createAdminClient } from '@/lib/supabase/admin'
 
 /**
  * DELETE /api/inbox/conversations/[id]/messages
@@ -24,7 +24,7 @@ export async function DELETE(
     return toErrorResponse(error)
   }
 
-  const admin = supabaseAdmin()
+  const admin = createAdminClient()
 
   const { data: conversation, error: conversationError } = await admin
     .from('conversations')
