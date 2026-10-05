@@ -159,14 +159,6 @@ export async function GET(request: Request) {
       )
     }
 
-    if (hashedMatches && hashedMatches.length > 1) {
-      console.error('[webhook] duplicate webhook verification token hash')
-      return NextResponse.json(
-        { error: 'Verification failed' },
-        { status: 403 }
-      )
-    }
-
     if (hashedMatches?.length === 1) {
       return new Response(challenge, {
         status: 200,
