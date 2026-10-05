@@ -1,83 +1,29 @@
-import { timingSafeEqual } from 'node:crypto'
 import { NextResponse } from 'next/server'
-import { supabaseAdmin } from '@/lib/automations/admin-client'
-import { resumePendingExecution } from '@/lib/automations/engine'
-import type { AutomationContext } from '@/lib/automations/engine'
+import { requireCronSecret } from '@/lib/cron-auth'
+import { runAutomationCron } from '@/lib/cron/jobs'
+import { createAdminClient } from '@/lib/supabase/admin'
 
-/**
- * Drain due `automation_pending_executions` rows. Meant to be hit
- * on a schedule (Vercel Cron / external pinger).
- *
- * Vercel Cron authenticates with `Authorization: Bearer <CRON_SECRET>`.
- * The legacy `x-cron-secret` header remains supported for external
- * pingers and backwards compatibility. Set `CRON_SECRET` to the same
- * value as `AUTOMATION_CRON_SECRET` when using Vercel Cron.
- *
- * The claim step (status = 'running') serves as a simple lock so
- * overlapping invocations don't double-process rows. Best-effort
- * only; expensive SELECT ... FOR UPDATE is avoided in favor of a
- * two-step UPDATE-by-id.
- */
+export const maxDuration = 60
+
 export async function GET(request: Request) {
-  const expected =
-    process.env.CRON_SECRET ?? process.env.AUTOMATION_CRON_SECRET
-  if (!expected) {
-    return NextResponse.json({ error: 'cron not configured' }, { status: 503 })
+  const authError = requireCronSecret(request)
+  if (authError) return authError
+
+  const admin = createAdminClient()
+  const { data: acquired, error: lockError } = await admin.rpc(
+    'try_acquire_cron_lock',
+    { p_name: 'automation-cron', p_ttl_seconds: 240 },
+  )
+  if (lockError) {
+    console.error('[automations-cron] lock acquisition failed:', lockError)
+    return NextResponse.json({ error: 'Cron lock unavailable' }, { status: 503 })
   }
+  if (!acquired) return NextResponse.json({ skipped: true, reason: 'already_running' })
 
-  const authorization = request.headers.get('authorization') ?? ''
-  const bearer = authorization.startsWith('Bearer ')
-    ? authorization.slice(7)
-    : ''
-  const supplied = request.headers.get('x-cron-secret') ?? bearer
-  const suppliedBuf = Buffer.from(supplied)
-  const expectedBuf = Buffer.from(expected)
-  if (
-    suppliedBuf.length !== expectedBuf.length ||
-    !timingSafeEqual(suppliedBuf, expectedBuf)
-  ) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  try {
+    return NextResponse.json(await runAutomationCron())
+  } catch (error) {
+    console.error('[automations-cron] failed:', error)
+    return NextResponse.json({ error: 'Automation cron failed' }, { status: 500 })
   }
-
-  const admin = supabaseAdmin()
-  const { data: due, error } = await admin
-    .from('automation_pending_executions')
-    .select('*')
-    .eq('status', 'pending')
-    .lte('run_at', new Date().toISOString())
-    .order('run_at', { ascending: true })
-    .limit(50)
-
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-  if (!due || due.length === 0) return NextResponse.json({ processed: 0 })
-
-  let processed = 0
-  for (const row of due) {
-    const { data: claim } = await admin
-      .from('automation_pending_executions')
-      .update({ status: 'running' })
-      .eq('id', row.id)
-      .eq('status', 'pending')
-      .select('id')
-      .maybeSingle()
-    if (!claim) continue
-
-    await resumePendingExecution({
-      id: row.id as string,
-      automation_id: row.automation_id as string,
-      // account_id is NOT NULL on automation_pending_executions
-      // post-017; the engine uses it for tenant-scoped lookups.
-      account_id: row.account_id as string,
-      user_id: row.user_id as string,
-      contact_id: (row.contact_id as string | null) ?? null,
-      log_id: (row.log_id as string | null) ?? null,
-      parent_step_id: (row.parent_step_id as string | null) ?? null,
-      branch: (row.branch as 'yes' | 'no' | null) ?? null,
-      next_step_position: row.next_step_position as number,
-      context: (row.context as AutomationContext) ?? {},
-    })
-    processed++
-  }
-
-  return NextResponse.json({ processed })
 }
