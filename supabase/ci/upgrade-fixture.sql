@@ -14,7 +14,7 @@ BEGIN
   )
   VALUES (
     v_user, 'authenticated', 'authenticated', 'migration-fixture@example.com',
-    crypt('fixture-password', gen_salt('bf')), NOW(), '{}'::jsonb,
+    'fixture-password', NOW(), '{}'::jsonb,
     '{"full_name":"Migration Fixture"}'::jsonb
   )
   ON CONFLICT (id) DO NOTHING;
