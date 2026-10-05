@@ -185,10 +185,10 @@
       "noCustomerMessages": "고객 메시지 없음"
     },
     "composer": {
-      "sessionExpiredHint": "24시간 세션이 만료되었습니다. 다시 연결하려면 템플릿을 사용하세요.",
+      "sessionExpiredHint": "세션이 만료되었습니다.",
       "templates": "템플릿",
       "readOnlyPlaceholder": "읽기 전용 — 뷰어는 열람만 가능하고 답장할 수 없습니다",
-      "sessionExpiredPlaceholder": "세션 만료 - 템플릿을 사용하세요",
+      "sessionExpiredPlaceholder": "",
       "typeMessagePlaceholder": "",
       "readOnlyTitle": "읽기 전용 — 현재 역할로는 메시지를 보낼 수 없습니다",
       "recording": "녹음 중… {current} / {max}",
