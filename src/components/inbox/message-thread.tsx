@@ -1,30 +1,3 @@
-  const handleClearChat = useCallback(async () => {
-    if (!conversation || !canSendMessages) return;
-    if (!window.confirm(t("clearChatConfirm"))) return;
-
-    try {
-      const response = await fetch(
-        `/api/inbox/conversations/${conversation.id}/messages`,
-        { method: "DELETE" },
-      );
-      const payload = await response.json().catch(() => ({}));
-
-      if (!response.ok) {
-        throw new Error(payload?.error || `HTTP ${response.status}`);
-      }
-
-      onMessagesLoaded([]);
-      toast.success(t("clearChatSuccess"));
-      onRefresh?.();
-    } catch (error) {
-      toast.error(
-        t("clearChatFailed", {
-          reason: error instanceof Error ? error.message : "Unknown error",
-        }),
-      );
-    }
-  }, [conversation, canSendMessages, onMessagesLoaded, onRefresh, t]);
-
 "use client";
 
 import { useState, useEffect, useCallback, useRef, useMemo } from "react";
@@ -196,7 +169,8 @@ export function MessageThread({
   const tTimer = useTranslations("Inbox.sessionTimer");
   const tQuote = useTranslations("Inbox.replyQuote");
 
-  const { user } = useAuth();\n  const canSendMessages = useCan("send-messages");
+  const { user } = useAuth();
+  const canSendMessages = useCan("send-messages");
   const { getPresence, getRow, now } = usePresence();
   const [loading, setLoading] = useState(false);
   const [loadingOlder, setLoadingOlder] = useState(false);
@@ -229,6 +203,33 @@ export function MessageThread({
       refreshTimerRef.current = null;
     }, 700);
   }, [isRefreshing, onRefresh]);
+  const handleClearChat = useCallback(async () => {
+    if (!conversation || !canSendMessages) return;
+    if (!window.confirm(t("clearChatConfirm"))) return;
+
+    try {
+      const response = await fetch(
+        `/api/inbox/conversations/${conversation.id}/messages`,
+        { method: "DELETE" },
+      );
+      const payload = await response.json().catch(() => ({}));
+
+      if (!response.ok) {
+        throw new Error(payload?.error || `HTTP ${response.status}`);
+      }
+
+      onMessagesLoaded([]);
+      toast.success(t("clearChatSuccess"));
+      onRefresh?.();
+    } catch (error) {
+      toast.error(
+        t("clearChatFailed", {
+          reason: error instanceof Error ? error.message : "Unknown error",
+        }),
+      );
+    }
+  }, [conversation, canSendMessages, onMessagesLoaded, onRefresh, t]);
+
   const [replyTo, setReplyTo] = useState<ReplyDraft | null>(null);
   // Which attachment the media viewer is showing. Lives here rather than in
   // the bubble so the viewer can page through every image/video in the
