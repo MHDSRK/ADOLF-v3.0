@@ -1,5 +1,4 @@
 import { NextResponse, after } from 'next/server'
-import { createClient } from '@supabase/supabase-js'
 import { decrypt, encrypt, isLegacyFormat } from '@/lib/whatsapp/encryption'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { hashVerifyToken } from '@/lib/whatsapp/verify-token'
