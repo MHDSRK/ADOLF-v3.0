@@ -69,3 +69,16 @@ jobs:
       # just the absence of an error.
       - name: Verify the resulting schema
         run: supabase db query --local --file supabase/ci/verify-schema.sql
+
+      # Upgrade-path test: replay the database as if production is currently
+      # on migration 042, insert representative live data, then apply only
+      # the new migrations. This catches failures that a clean reset misses.
+      - name: Test upgrade on populated schema
+        run: |
+          supabase db reset --local --version 042 --no-seed
+          supabase db query --local --file supabase/ci/upgrade-fixture.sql
+          supabase migration up --local
+          supabase db query --local --file supabase/ci/verify-upgrade.sql
+
+      - name: PostgreSQL schema lint
+        run: supabase db lint --local --fail-on error
