@@ -149,7 +149,7 @@ export async function GET(request: Request) {
       .from('whatsapp_config')
       .select('id, verify_token')
       .eq('verify_token_hash', tokenHash)
-      .limit(2)
+      .limit(1)
 
     if (hashError) {
       console.error('[webhook] verify-token hash lookup failed:', hashError)
