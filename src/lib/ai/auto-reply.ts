@@ -57,6 +57,7 @@ export async function dispatchInboundToAiReply(
     configOwnerUserId,
     inboundMessageId,
   } = args
+  let claimId: string | null = null
 
   try {
     const db = supabaseAdmin()
@@ -110,6 +111,20 @@ export async function dispatchInboundToAiReply(
         `[ai auto-reply] account ${accountId} hit the per-account rate limit — skipping this inbound.`,
       )
       return
+    }
+
+    // The webhook can be retried by Meta, and the same delivery can also
+    // arrive concurrently at two function instances. Claim the inbound
+    // message before doing any LLM work so only one invocation can produce
+    // an automatic reply for that exact customer message.
+    if (inboundMessageId) {
+      claimId = await claimAiReply(
+        db,
+        accountId,
+        conversationId,
+        inboundMessageId,
+      )
+      if (!claimId) return
     }
 
     // Every gate has passed — we're committed to attempting a reply, so
@@ -178,6 +193,7 @@ export async function dispatchInboundToAiReply(
         update.assigned_agent_id = config.handoffAgentId
       }
       await db.from('conversations').update(update).eq('id', conversationId)
+      if (claimId) await completeAiReplyClaim(db, claimId)
       return
     }
 
@@ -211,9 +227,94 @@ export async function dispatchInboundToAiReply(
       text,
       aiGenerated: true,
     })
+
+    if (claimId) await completeAiReplyClaim(db, claimId)
   } catch (err) {
+    if (claimId) {
+      await failAiReplyClaim(
+        supabaseAdmin(),
+        claimId,
+        err instanceof Error ? err.message : String(err),
+      )
+    }
     console.error('[ai auto-reply] dispatch failed:', err)
   }
+}
+
+async function claimAiReply(
+  db: ReturnType<typeof supabaseAdmin>,
+  accountId: string,
+  conversationId: string,
+  inboundMessageId: string,
+): Promise<string | null> {
+  const { data, error } = await db
+    .from('ai_reply_claims')
+    .insert({
+      account_id: accountId,
+      conversation_id: conversationId,
+      inbound_message_id: inboundMessageId,
+      status: 'processing',
+    })
+    .select('id')
+    .maybeSingle()
+
+  if (!error && data?.id) return data.id
+  if (error?.code !== '23505') {
+    if (error) console.error('[ai auto-reply] claim failed:', error)
+    return null
+  }
+
+  // A previous attempt failed before completion. Reclaim that same inbound
+  // delivery; an already-processing or completed claim belongs to another
+  // invocation and must not be duplicated.
+  const { data: retry, error: retryError } = await db
+    .from('ai_reply_claims')
+    .update({
+      status: 'processing',
+      claimed_at: new Date().toISOString(),
+      completed_at: null,
+      error_message: null,
+    })
+    .eq('account_id', accountId)
+    .eq('inbound_message_id', inboundMessageId)
+    .eq('status', 'failed')
+    .select('id')
+    .maybeSingle()
+
+  if (retryError) {
+    console.error('[ai auto-reply] claim retry failed:', retryError)
+    return null
+  }
+  return retry?.id ?? null
+}
+
+async function completeAiReplyClaim(
+  db: ReturnType<typeof supabaseAdmin>,
+  claimId: string,
+): Promise<void> {
+  const { error } = await db
+    .from('ai_reply_claims')
+    .update({
+      status: 'completed',
+      completed_at: new Date().toISOString(),
+      error_message: null,
+    })
+    .eq('id', claimId)
+    .eq('status', 'processing')
+  if (error) console.error('[ai auto-reply] claim completion failed:', error)
+}
+
+async function failAiReplyClaim(
+  db: ReturnType<typeof supabaseAdmin>,
+  claimId: string,
+  message: string,
+): Promise<void> {
+  const { error } = await db
+    .from('ai_reply_claims')
+    .update({ status: 'failed', error_message: message })
+    .eq('id', claimId)
+    .eq('status', 'processing')
+  if (error) console.error('[ai auto-reply] claim failure update failed:', error)
 }
 
 /**
