@@ -4,7 +4,7 @@ on:
   pull_request:
     branches: [main]
   push:
-    branches: [main]
+    branches: [main, Adolf-v3.1, Adolf-v3.1-Fixed]
 
 # Validate every PR with the complete quality gate.
 # Cancel older CI runs for the same branch when a new commit arrives —
