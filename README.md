@@ -45,9 +45,40 @@ npm run build
 
 ## Environment
 
-Configure the Supabase, encryption and Meta WhatsApp credentials described in `.env.local.example`.
+Configure the Supabase publishable/secret keys, encryption key, Meta WhatsApp
+credentials and required scheduler secret described in `.env.local.example`.
 
-Never commit secrets, access tokens, webhook verification tokens or service-role credentials.
+Supabase's new `sb_publishable_...` and `sb_secret_...` keys are the supported
+configuration. The old `anon` / `service_role` environment variable names are
+kept only as a temporary migration fallback.
+
+Never commit secrets, access tokens, webhook verification tokens or Supabase
+secret credentials.
+
+## Scheduled workers
+
+The production app exposes one authenticated scheduler endpoint:
+
+`GET /api/cron`
+
+It runs automation waits and Flow timeout sweeps under one database lock.
+The individual endpoints remain available for diagnostics:
+
+- `/api/automations/cron`
+- `/api/flows/cron`
+
+Vercel Hobby cannot schedule jobs more frequently than once per day, so this
+repository intentionally does **not** configure Vercel Cron. GitHub Actions
+invokes `/api/cron` every five minutes instead.
+
+Configure these GitHub repository secrets:
+
+- `ADOLF_CRON_BASE_URL` — the production origin, for example
+  `https://crm.example.com`
+- `CRON_SECRET` — the same random value configured in the deployment
+
+Scheduled GitHub workflows run only from the repository's default branch, so
+the scheduler becomes active after the workflow is merged to that branch.
 
 ## Repository
 
