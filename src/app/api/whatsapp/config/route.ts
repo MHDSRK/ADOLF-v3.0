@@ -409,10 +409,15 @@ export async function POST(request: Request) {
         existing?.verify_token ?? null
       )
       if (encryptedVerifyToken) {
-        // Hash the plaintext supplied by the form when it is available. If
-        // the field was left blank, the existing encrypted value is kept and
-        // its hash is preserved below by the update/read path.
-        const plaintextVerifyToken = typeof verify_token === 'string' ? verify_token.trim() : ''
+        // Prefer the plaintext supplied by the form. When the form leaves
+        // it blank, decrypt the existing value once so saving another field
+        // also upgrades old rows to the indexed hash format.
+        const plaintextVerifyToken =
+          typeof verify_token === 'string' && verify_token.trim()
+            ? verify_token.trim()
+            : existing?.verify_token
+              ? decrypt(existing.verify_token)
+              : ''
         if (plaintextVerifyToken) verifyTokenHash = hashVerifyToken(plaintextVerifyToken)
       }
     } catch (err) {
