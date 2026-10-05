@@ -238,20 +238,20 @@ export function MessageThread({
 
   // 24-hour session timer
   const sessionInfo = useMemo(() => {
-    if (!messages.length) return { expired: false, remaining: "" };
+    if (!messages.length) return { expired: false, remaining: "", reason: null as "no_customer_messages" | "expired" | null };
 
     // Find last customer message
     const lastCustomerMsg = [...messages]
       .reverse()
       .find((m) => m.sender_type === "customer");
 
-    if (!lastCustomerMsg) return { expired: true, remaining: tTimer("noCustomerMessages") };
+    if (!lastCustomerMsg) return {\n      expired: true,\n      remaining: tTimer("noCustomerMessages"),\n      reason: "no_customer_messages" as const,\n    };
 
     const hoursSince = differenceInHours(new Date(), new Date(lastCustomerMsg.created_at));
     const expired = hoursSince >= 24;
 
     if (expired) {
-      return { expired: true, remaining: tTimer("expired") };
+      return {\n        expired: true,\n        remaining: tTimer("expired"),\n        reason: "expired" as const,\n      };
     }
 
     const hoursLeft = 24 - hoursSince;
@@ -260,7 +260,7 @@ export function MessageThread({
         ? tTimer("xhRemaining", { hours: Math.floor(hoursLeft) })
         : tTimer("xmRemaining", { minutes: Math.floor(hoursLeft * 60) });
 
-    return { expired, remaining };
+    return { expired, remaining, reason: null as "no_customer_messages" | "expired" | null };
   }, [messages, tTimer]);
 
   // Store latest callback in a ref so fetchMessages doesn't need to
