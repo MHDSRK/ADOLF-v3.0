@@ -185,10 +185,10 @@
       "noCustomerMessages": "Sin mensajes del cliente"
     },
     "composer": {
-      "sessionExpiredHint": "La sesión de 24 horas expiró. Usa una plantilla para retomar el contacto.",
+      "sessionExpiredHint": "Sesión expirada.",
       "templates": "Plantillas",
       "readOnlyPlaceholder": "Solo lectura: los observadores pueden navegar, pero no responder",
-      "sessionExpiredPlaceholder": "Sesión expirada - usa una plantilla",
+      "sessionExpiredPlaceholder": "",
       "typeMessagePlaceholder": "",
       "readOnlyTitle": "Solo lectura: tu rol no puede enviar mensajes",
       "recording": "Grabando… {current} / {max}",
