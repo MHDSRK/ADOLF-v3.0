@@ -44,6 +44,12 @@ const STATUS_COLORS: Record<ConversationStatus, string> = {
   closed: "bg-green-500",
 };
 
+const STATUS_TEXT_COLORS: Record<ConversationStatus, string> = {
+  open: "text-blue-500",
+  pending: "text-yellow-500",
+  closed: "text-green-500",
+};
+
 
 
 type InboxFilter = ConversationStatus | "all" | "unread";
@@ -291,9 +297,11 @@ export function ConversationList({
                   onClick={() => setFilter(opt.value)}
                   className={cn(
                     "text-sm",
-                    filter === opt.value
-                      ? "text-primary"
-                      : "text-popover-foreground"
+                    opt.value !== "all" && opt.value !== "unread"
+                      ? STATUS_TEXT_COLORS[opt.value]
+                      : filter === opt.value
+                        ? "text-primary"
+                        : "text-popover-foreground",
                   )}
                 >
                   {opt.label}
