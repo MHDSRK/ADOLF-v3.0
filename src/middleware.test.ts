@@ -138,3 +138,30 @@ describe("middleware — every dashboard route requires a session", () => {
     expect(new URL(res.headers.get("location")!).pathname).toBe("/login");
   });
 });
+
+
+describe("proxy — API routes fail closed", () => {
+  it("rejects an unauthenticated non-public API route", async () => {
+    mockUser = null
+    const res = await proxy(new NextRequest("https://app.test/api/account"))
+    expect(res.status).toBe(401)
+  })
+
+  it("does not block the Meta webhook", async () => {
+    mockUser = null
+    const res = await proxy(new NextRequest("https://app.test/api/whatsapp/webhook"))
+    expect(res.status).not.toBe(401)
+  })
+
+  it("does not block public API-key routes", async () => {
+    mockUser = null
+    const res = await proxy(new NextRequest("https://app.test/api/v1/contacts"))
+    expect(res.status).not.toBe(401)
+  })
+
+  it("does not block the authenticated cron boundary here", async () => {
+    mockUser = null
+    const res = await proxy(new NextRequest("https://app.test/api/cron"))
+    expect(res.status).not.toBe(401)
+  })
+})
