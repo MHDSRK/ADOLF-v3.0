@@ -9,6 +9,7 @@ type WebhookEnvelope = {
       value?: {
         metadata?: { phone_number_id?: string }
         messages?: Array<{ id?: string }>
+        message_echoes?: Array<{ id?: string }>
         statuses?: Array<{ id?: string }>
       }
     }>
@@ -39,9 +40,14 @@ export async function recordWebhookDelivery(
   const phoneNumberIds = unique(
     changes.map((change) => change.value?.metadata?.phone_number_id)
   )
-  const messageIds = unique(
-    changes.flatMap((change) => (change.value?.messages ?? []).map((message) => message.id))
-  )
+  const messageIds = unique([
+    ...changes.flatMap((change) =>
+      (change.value?.messages ?? []).map((message) => message.id)
+    ),
+    ...changes.flatMap((change) =>
+      (change.value?.message_echoes ?? []).map((message) => message.id)
+    ),
+  ])
   const statusIds = unique(
     changes.flatMap((change) => (change.value?.statuses ?? []).map((status) => status.id))
   )
