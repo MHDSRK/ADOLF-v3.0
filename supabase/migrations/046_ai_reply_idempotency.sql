@@ -6,7 +6,7 @@
 -- ============================================================
 
 CREATE TABLE IF NOT EXISTS ai_reply_claims (
-  id UUID PRIMARY KEY DEFAULT extensions.uuid_generate_v4(),
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   account_id UUID NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
   conversation_id UUID NOT NULL REFERENCES conversations(id) ON DELETE CASCADE,
   inbound_message_id TEXT NOT NULL,
