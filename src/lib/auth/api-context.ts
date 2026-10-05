@@ -29,7 +29,7 @@
 
 import type { SupabaseClient } from '@supabase/supabase-js';
 
-import { supabaseAdmin } from '@/lib/flows/admin-client';
+import { createAdminClient } from '@/lib/supabase/admin';
 import { findActiveKeyByHash, touchLastUsed } from '@/lib/api-keys/store';
 import { hashApiKey, looksLikeApiKey } from '@/lib/api-keys/keys';
 import { hasScope, type ApiScope } from '@/lib/api-keys/scopes';
@@ -109,7 +109,7 @@ export async function requireApiKey(
 
   return {
     authType: 'api_key',
-    supabase: supabaseAdmin(),
+    supabase: createAdminClient(),
     accountId: row.account_id,
     keyId: row.id,
     scopes: row.scopes,
