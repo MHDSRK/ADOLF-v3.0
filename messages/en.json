@@ -176,7 +176,11 @@
       "sendTemplateFailed": "Failed to send template: {reason}",
       "waitForSending": "Wait for the message to finish sending",
       "reactionFailed": "Reaction failed: {reason}",
-      "assignmentUpdateFailed": "Failed to update assignment"
+      "assignmentUpdateFailed": "Failed to update assignment",
+      "clearChat": "Clear chat",
+      "clearChatConfirm": "Clear all messages in this chat? This only removes the history from ADOLF; it does not delete the WhatsApp messages.",
+      "clearChatSuccess": "Chat history cleared.",
+      "clearChatFailed": "Failed to clear chat: {reason}"
     },
     "sessionTimer": {
       "expired": "Expired",
