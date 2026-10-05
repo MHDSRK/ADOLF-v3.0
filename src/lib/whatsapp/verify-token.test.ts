@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { decrypt, encrypt } from './encryption';
-import { resolveVerifyTokenForSave } from './verify-token';
+import { hashVerifyToken, resolveVerifyTokenForSave } from './verify-token';
 
 /**
  * Regression cover for the settings page silently dropping the webhook
@@ -44,5 +44,27 @@ describe('resolveVerifyTokenForSave', () => {
   it('trims surrounding whitespace before encrypting', () => {
     const out = resolveVerifyTokenForSave('  padded  ', null);
     expect(decrypt(out!)).toBe('padded');
+  });
+});
+
+
+describe('hashVerifyToken', () => {
+  it('is deterministic and does not equal the plaintext token', () => {
+    process.env.ENCRYPTION_KEY =
+      '0000000000000000000000000000000000000000000000000000000000000000';
+
+    const a = hashVerifyToken('same-token');
+    const b = hashVerifyToken('same-token');
+
+    expect(a).toBe(b);
+    expect(a).not.toBe('same-token');
+    expect(a).toHaveLength(64);
+  });
+
+  it('changes when the verification token changes', () => {
+    process.env.ENCRYPTION_KEY =
+      '0000000000000000000000000000000000000000000000000000000000000000';
+
+    expect(hashVerifyToken('token-a')).not.toBe(hashVerifyToken('token-b'));
   });
 });
