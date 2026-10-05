@@ -291,6 +291,10 @@ export async function sendMessageToConversation(
       .eq('account_id', accountId)
       .then(({ error }: { error: { message: string } | null }) => {
         if (error && process.env.NODE_ENV !== 'production') {
+          console.error('[send-message] legacy access-token re-encryption failed:', error.message);
+        }
+      });
+  }
 
   // Resolve the reply target to its Meta message_id. The parent must
   // belong to this same conversation — otherwise a caller could quote
