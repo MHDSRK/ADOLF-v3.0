@@ -2,7 +2,7 @@ name: CI
 
 on:
   pull_request:
-    branches: [main]
+    branches: [main, Adolf-v3.1]
   push:
     branches: [main, Adolf-v3.1, Adolf-v3.1-Fixed]
 
