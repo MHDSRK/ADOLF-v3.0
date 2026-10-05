@@ -27,10 +27,9 @@ const SECURITY_HEADERS = [
   { key: "X-Frame-Options", value: "DENY" },
   { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
   {
-    // Microphone is allowed for same-origin (`self`) so the inbox
-    // composer can record voice notes with opus-recorder. Everything
-    // else stays denied — a compromised dependency can't silently grab
-    // the camera / geolocation / etc.
+    // Microphone is allowed only for same-origin (`self`) because the
+    // inbox composer records voice notes. Camera, geolocation and other
+    // sensitive capabilities stay denied.
     key: "Permissions-Policy",
     value: "camera=(), microphone=(self), geolocation=(), payment=(), usb=()",
   },
@@ -70,10 +69,9 @@ const nextConfig: NextConfig = {
    * allow-listing that host those dev requests come back 403: HMR stops
    * working and the dev session degrades over the tunnel (issue #365).
    *
-   * Wildcards match subdomains only (Next's CSRF matcher), so the
-   * randomised tunnel subdomain is covered. Add any other host via
-   * `ALLOWED_DEV_ORIGINS` (comma-separated). This key is dev-only and
-   * has no effect on a production build.
+   * No tunnel origins are trusted by default. Add a development tunnel
+   * explicitly via `ALLOWED_DEV_ORIGINS` (comma-separated). This key is
+   * dev-only and has no effect on a production build.
    */
   allowedDevOrigins: process.env.ALLOWED_DEV_ORIGINS
     ? process.env.ALLOWED_DEV_ORIGINS.split(",")
