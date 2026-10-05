@@ -245,13 +245,23 @@ export function MessageThread({
       .reverse()
       .find((m) => m.sender_type === "customer");
 
-    if (!lastCustomerMsg) return {\n      expired: true,\n      remaining: tTimer("noCustomerMessages"),\n      reason: "no_customer_messages" as const,\n    };
+    if (!lastCustomerMsg) {
+      return {
+        expired: true,
+        remaining: tTimer("noCustomerMessages"),
+        reason: "no_customer_messages" as const,
+      };
+    };
 
     const hoursSince = differenceInHours(new Date(), new Date(lastCustomerMsg.created_at));
     const expired = hoursSince >= 24;
 
     if (expired) {
-      return {\n        expired: true,\n        remaining: tTimer("expired"),\n        reason: "expired" as const,\n      };
+      return {
+        expired: true,
+        remaining: tTimer("expired"),
+        reason: "expired" as const,
+      };
     }
 
     const hoursLeft = 24 - hoursSince;
