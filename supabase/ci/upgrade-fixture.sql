@@ -19,20 +19,15 @@ BEGIN
   )
   ON CONFLICT (id) DO NOTHING;
 
-  INSERT INTO accounts (id, name, owner_user_id)
-  VALUES (v_account, 'Migration Fixture Account', v_user)
-  ON CONFLICT (id) DO NOTHING;
+  -- Migration 017's auth trigger creates the profile/account pair.
+  -- Reuse that account instead of inserting a second owner row.
+  SELECT account_id INTO v_account
+  FROM profiles
+  WHERE user_id = v_user;
 
-  INSERT INTO profiles (
-    user_id, full_name, email, account_id, account_role
-  )
-  VALUES (
-    v_user, 'Migration Fixture', 'migration-fixture@example.com',
-    v_account, 'owner'
-  )
-  ON CONFLICT (user_id) DO UPDATE
-  SET account_id = EXCLUDED.account_id,
-      account_role = EXCLUDED.account_role;
+  IF v_account IS NULL THEN
+    RAISE EXCEPTION 'migration fixture user was not assigned an account';
+  END IF;
 
   INSERT INTO contacts (
     id, user_id, account_id, phone, name
