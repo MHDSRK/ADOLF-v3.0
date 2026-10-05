@@ -1,6 +1,5 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
-import { createClient as createAdminClient } from '@supabase/supabase-js'
 import {
   getSubscribedApps,
   listWabaPhoneNumbers,
@@ -21,7 +20,8 @@ import {
   phoneNumberBelongsToWaba,
 } from '@/lib/whatsapp/waba-pairing'
 import { encrypt, decrypt } from '@/lib/whatsapp/encryption'
-import { resolveVerifyTokenForSave } from '@/lib/whatsapp/verify-token'
+import { hashVerifyToken, resolveVerifyTokenForSave } from '@/lib/whatsapp/verify-token'
+import { createAdminClient } from '@/lib/supabase/admin'
 
 /**
  * Resolve the caller's account_id from their profile. Inlined here
@@ -46,21 +46,7 @@ async function resolveAccountId(
   return data.account_id as string
 }
 
-// Lazy-initialised service-role client. We need it to detect a
-// phone_number_id already claimed by a *different* user — under RLS,
-// the user's own session can't see other users' rows, so the conflict
-// would be invisible without the service role.
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-let _adminClient: any = null
-function supabaseAdmin() {
-  if (!_adminClient) {
-    _adminClient = createAdminClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY!
-    )
-  }
-  return _adminClient
-}
+const supabaseAdmin = createAdminClient
 
 /**
  * Shape every failed Meta call into `{ error, meta }` — the actionable
@@ -415,12 +401,20 @@ export async function POST(request: Request) {
     // Encrypt sensitive tokens before storing
     let encryptedAccessToken: string
     let encryptedVerifyToken: string | null
+    let verifyTokenHash: string | null = null
     try {
       encryptedAccessToken = encrypt(access_token)
       encryptedVerifyToken = resolveVerifyTokenForSave(
         verify_token,
         existing?.verify_token ?? null
       )
+      if (encryptedVerifyToken) {
+        // Hash the plaintext supplied by the form when it is available. If
+        // the field was left blank, the existing encrypted value is kept and
+        // its hash is preserved below by the update/read path.
+        const plaintextVerifyToken = typeof verify_token === 'string' ? verify_token.trim() : ''
+        if (plaintextVerifyToken) verifyTokenHash = hashVerifyToken(plaintextVerifyToken)
+      }
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Unknown encryption error'
       console.error('Encryption failed:', message)
@@ -518,6 +512,7 @@ export async function POST(request: Request) {
       waba_id: waba_id || null,
       access_token: encryptedAccessToken,
       verify_token: encryptedVerifyToken,
+      ...(verifyTokenHash ? { verify_token_hash: verifyTokenHash } : {}),
       status: registrationError ? 'disconnected' : 'connected',
       connected_at: registrationError ? null : new Date().toISOString(),
       registered_at: registrationError ? null : registeredAt,
