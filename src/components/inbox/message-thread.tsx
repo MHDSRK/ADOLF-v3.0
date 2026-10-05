@@ -54,7 +54,8 @@ import { AiThreadBanner } from "./ai-thread-banner";
 import { buildReplyPreview } from "./reply-quote";
 import { renderTemplateBody } from "@/lib/whatsapp/template-body";
 import { contactHandle } from "@/lib/whatsapp/wa-identity";
-import { toast } from "sonner";\nimport { useCan } from "@/hooks/use-can";
+import { toast } from "sonner";
+import { useCan } from "@/hooks/use-can";
 
 interface ReplyDraft {
   id: string;
