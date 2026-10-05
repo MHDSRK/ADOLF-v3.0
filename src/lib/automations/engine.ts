@@ -880,6 +880,6 @@ async function finalizeLog(
 async function markPending(id: string, status: 'done' | 'failed') {
   await supabaseAdmin()
     .from('automation_pending_executions')
-    .update({ status })
+    .update({ status, claimed_at: null })
     .eq('id', id)
 }
