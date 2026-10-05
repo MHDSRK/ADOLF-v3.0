@@ -39,9 +39,9 @@ interface ConversationListProps {
 }
 
 const STATUS_COLORS: Record<ConversationStatus, string> = {
-  open: "bg-primary",
-  pending: "bg-amber-500",
-  closed: "bg-muted-foreground",
+  open: "bg-blue-500",
+  pending: "bg-yellow-500",
+  closed: "bg-green-500",
 };
 
 
@@ -513,8 +513,14 @@ function ConversationItem({
         )}
       </div>
 
-      {/* Content */}
-      <div className="min-w-0 flex-1">
+      {/* Content + status indicator */}
+      <div className="flex min-w-0 flex-1 items-stretch gap-2">
+        <span
+          className={cn("w-0.5 shrink-0 rounded-full", STATUS_COLORS[conversation.status])}
+          title={conversation.status}
+          aria-label={conversation.status}
+        />
+        <div className="min-w-0 flex-1">
         <div className="flex items-center justify-between gap-2">
           <span className="truncate text-sm font-medium text-foreground">
             {displayName}
