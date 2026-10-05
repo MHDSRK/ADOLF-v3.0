@@ -15,7 +15,7 @@ concurrency:
 
 jobs:
   check:
-    name: Lint, typecheck, test, build
+    name: Production quality gate
     runs-on: ubuntu-latest
     # Dummy env vars so `next build` doesn't fail when it reads the
     # public Supabase config at build time. These never leave CI and
@@ -42,14 +42,5 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Lint
-        run: npm run lint
-
-      - name: Typecheck
-        run: npm run typecheck
-
-      - name: Test
-        run: npm test
-
-      - name: Build
-        run: npm run build
+      - name: Production quality gate
+        run: npm run quality:gate
