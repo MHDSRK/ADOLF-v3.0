@@ -185,10 +185,10 @@
       "noCustomerMessages": "Nenhuma mensagem do cliente"
     },
     "composer": {
-      "sessionExpiredHint": "A sessão de 24 horas expirou. Use um modelo para retomar o contato.",
+      "sessionExpiredHint": "Sessão expirada.",
       "templates": "Modelos",
       "readOnlyPlaceholder": "Somente leitura — visualizadores podem navegar, mas não responder",
-      "sessionExpiredPlaceholder": "Sessão expirada - use um modelo",
+      "sessionExpiredPlaceholder": "",
       "typeMessagePlaceholder": "",
       "readOnlyTitle": "Somente leitura — sua função não pode enviar mensagens",
       "recording": "Gravando… {current} / {max}",
