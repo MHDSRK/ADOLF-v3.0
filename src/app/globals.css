@@ -1,0 +1,232 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+
+@custom-variant dark (&:is(.dark *));
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-roboto);
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+  --font-heading: var(--font-roboto);
+  --color-sidebar-ring: var(--sidebar-ring);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar: var(--sidebar);
+  --color-chart-5: var(--chart-5);
+  --color-chart-4: var(--chart-4);
+  --color-chart-3: var(--chart-3);
+  --color-chart-2: var(--chart-2);
+  --color-chart-1: var(--chart-1);
+  --color-ring: var(--ring);
+  --color-input: var(--input);
+  --color-border: var(--border);
+  --color-destructive: var(--destructive);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-accent: var(--accent);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-muted: var(--muted);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-secondary: var(--secondary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary: var(--primary);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-popover: var(--popover);
+  --color-card-foreground: var(--card-foreground);
+  --color-card: var(--card);
+  --color-card-2: var(--card-2);
+  --color-primary-hover: var(--primary-hover);
+  --color-primary-soft: var(--primary-soft);
+  --color-primary-soft-2: var(--primary-soft-2);
+  --radius-sm: calc(var(--radius) * 0.6);
+  --radius-md: calc(var(--radius) * 0.8);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) * 1.4);
+  --radius-2xl: calc(var(--radius) * 1.8);
+  --radius-3xl: calc(var(--radius) * 2.2);
+  --radius-4xl: calc(var(--radius) * 2.6);
+}
+
+/*
+ * ADOLF v3.0 visual system
+ *
+ * Dark:
+ *   background  #050506 → #021330
+ *   text/icons  #73F3FF
+ *
+ * Light:
+ *   background  #C1FAFF → #FFFFFF
+ *   text/icons  #050506
+ *
+ * Light/dark is the only user-selectable appearance setting. Accent
+ * themes have intentionally been removed so the product has one visual
+ * identity everywhere.
+ */
+
+:root,
+html[data-mode="dark"] {
+  --layout-page-gutter-x: clamp(1rem, 2vw, 2rem);
+  --layout-page-gutter-y: clamp(1rem, 1.5vw, 1.5rem);
+  --layout-card-x: 1.125rem;
+  --layout-card-y: 1rem;
+  --layout-card-gap: 0.875rem;
+
+  --background: transparent;
+  --foreground: #73F3FF;
+
+  --card: rgb(5 5 6 / 0.78);
+  --card-2: rgb(2 19 48 / 0.74);
+  --card-foreground: #73F3FF;
+
+  --popover: rgb(5 5 6 / 0.96);
+  --popover-foreground: #73F3FF;
+
+  --primary: #73F3FF;
+  --primary-foreground: #050506;
+  --primary-hover: #8AF6FF;
+  --primary-soft: rgb(115 243 255 / 0.12);
+  --primary-soft-2: rgb(115 243 255 / 0.22);
+
+  --secondary: rgb(115 243 255 / 0.12);
+  --secondary-foreground: #73F3FF;
+  --muted: rgb(115 243 255 / 0.09);
+  --muted-foreground: rgb(115 243 255 / 0.72);
+  --accent: rgb(115 243 255 / 0.12);
+  --accent-foreground: #73F3FF;
+
+  --border: rgb(115 243 255 / 0.24);
+  --input: rgb(115 243 255 / 0.28);
+  --ring: #73F3FF;
+
+  --sidebar: rgb(5 5 6 / 0.84);
+  --sidebar-foreground: #73F3FF;
+  --sidebar-accent: rgb(115 243 255 / 0.12);
+  --sidebar-accent-foreground: #73F3FF;
+  --sidebar-primary: #73F3FF;
+  --sidebar-primary-foreground: #050506;
+  --sidebar-border: rgb(115 243 255 / 0.24);
+  --sidebar-ring: #73F3FF;
+
+  --chart-1: #73F3FF;
+  --chart-2: rgb(115 243 255 / 0.82);
+  --chart-3: rgb(115 243 255 / 0.64);
+  --chart-4: rgb(115 243 255 / 0.46);
+  --chart-5: rgb(115 243 255 / 0.28);
+
+  --destructive: #ff6b7a;
+  --radius: 0.625rem;
+}
+
+html[data-mode="light"] {
+  --background: transparent;
+  --foreground: #050506;
+
+  --card: rgb(255 255 255 / 0.82);
+  --card-2: rgb(193 250 255 / 0.72);
+  --card-foreground: #050506;
+
+  --popover: rgb(255 255 255 / 0.97);
+  --popover-foreground: #050506;
+
+  --primary: #050506;
+  --primary-foreground: #ffffff;
+  --primary-hover: #15151a;
+  --primary-soft: rgb(5 5 6 / 0.08);
+  --primary-soft-2: rgb(5 5 6 / 0.16);
+
+  --secondary: rgb(5 5 6 / 0.08);
+  --secondary-foreground: #050506;
+  --muted: rgb(5 5 6 / 0.07);
+  --muted-foreground: rgb(5 5 6 / 0.68);
+  --accent: rgb(5 5 6 / 0.08);
+  --accent-foreground: #050506;
+
+  --border: rgb(5 5 6 / 0.16);
+  --input: rgb(5 5 6 / 0.2);
+  --ring: #050506;
+
+  --sidebar: rgb(255 255 255 / 0.84);
+  --sidebar-foreground: #050506;
+  --sidebar-accent: rgb(5 5 6 / 0.08);
+  --sidebar-accent-foreground: #050506;
+  --sidebar-primary: #050506;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-border: rgb(5 5 6 / 0.16);
+  --sidebar-ring: #050506;
+
+  --chart-1: #050506;
+  --chart-2: rgb(5 5 6 / 0.8);
+  --chart-3: rgb(5 5 6 / 0.62);
+  --chart-4: rgb(5 5 6 / 0.44);
+  --chart-5: rgb(5 5 6 / 0.28);
+
+  --destructive: #c1122f;
+  --radius: 0.625rem;
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+
+  html {
+    @apply font-sans;
+    min-height: 100%;
+    background: #050506;
+  }
+
+  html[data-mode="dark"] {
+    background: linear-gradient(135deg, #050506 0%, #021330 100%);
+    background-attachment: fixed;
+  }
+
+  html[data-mode="light"] {
+    background: linear-gradient(135deg, #C1FAFF 0%, #FFFFFF 100%);
+    background-attachment: fixed;
+  }
+
+  body {
+    @apply text-foreground font-sans;
+    min-height: 100%;
+    background: transparent;
+    background-image: inherit;
+    background-attachment: inherit;
+  }
+
+  .app-main {
+    padding: var(--layout-page-gutter-y) var(--layout-page-gutter-x);
+  }
+
+  button,
+  input,
+  textarea,
+  select {
+    color: var(--foreground);
+  }
+
+  ::selection {
+    background: var(--primary);
+    color: var(--primary-foreground);
+  }
+}
+
+.brand-mark-dark {
+  display: block;
+}
+
+.brand-mark-light {
+  display: none;
+}
+
+html[data-mode="light"] .brand-mark-dark {
+  display: none;
+}
+
+html[data-mode="light"] .brand-mark-light {
+  display: block;
+}
