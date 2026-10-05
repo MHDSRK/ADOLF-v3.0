@@ -80,9 +80,22 @@ export async function proxy(request: NextRequest) {
     return withRefreshedCookies(NextResponse.redirect(url))
   }
 
-  // API routes that need auth (not webhooks)
-  if (!user && request.nextUrl.pathname.startsWith('/api/whatsapp/') &&
-      !request.nextUrl.pathname.includes('/webhook')) {
+  // API authorization boundary:
+  // - /api/v1/* authenticates with scoped API keys inside the route layer.
+  // - /api/whatsapp/webhook authenticates with Meta's HMAC signature.
+  // - /api/cron authenticates with CRON_SECRET.
+  // - /api/invitations/* is intentionally public because invite tokens are
+  //   the credential used to peek/redeem an invitation.
+  // Every other API route requires a Supabase session here as a fail-closed
+  // guard against a newly-added route forgetting its own auth check.
+  const pathname = request.nextUrl.pathname
+  const publicApi =
+    pathname === '/api/whatsapp/webhook' ||
+    pathname.startsWith('/api/v1/') ||
+    pathname === '/api/cron' ||
+    pathname.startsWith('/api/invitations/')
+
+  if (!user && pathname.startsWith('/api/') && !publicApi) {
     return withRefreshedCookies(
       NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     )
