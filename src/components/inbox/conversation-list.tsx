@@ -546,6 +546,7 @@ function ConversationItem({
             />
           </div>
         </div>
+        </div>
       </div>
     </button>
   );
