@@ -312,6 +312,7 @@ export function MessageThread({
   });
 
   const conversationId = conversation?.id;
+  const historyCutoff = conversation?.message_history_cutoff_at ?? null;
   const hasUnread = (conversation?.unread_count ?? 0) > 0;
 
   const mediaMessageId =
@@ -339,10 +340,6 @@ export function MessageThread({
 
     (async () => {
       setLoading(true);
-
-      const historyCutoff =
-        (conversation as Conversation & { message_history_cutoff_at?: string | null })
-          .message_history_cutoff_at ?? null;
 
       let query = supabase
         .from("messages")
@@ -380,7 +377,7 @@ export function MessageThread({
     // the realtime channel reconnects or the tab regains focus —
     // realtime is best-effort and any message events sent while the WS
     // was disconnected or throttled are otherwise lost.
-  }, [conversationId, resyncToken]);
+  }, [conversationId, historyCutoff, resyncToken]);
 
   // Reactions fetch — pulls the current state from the DB. Kept separate
   // from the channel subscription below so a `resyncToken` bump just
