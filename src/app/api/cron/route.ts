@@ -53,8 +53,11 @@ export async function GET(request: Request) {
     )
   }
 
+  const automationResult = automations.status === 'fulfilled' ? automations.value : null
+  const flowResult = flows.status === 'fulfilled' ? flows.value : null
+
   return NextResponse.json({
-    automations: automations.value,
-    flows: flows.value,
+    automations: automationResult,
+    flows: flowResult,
   })
 }
