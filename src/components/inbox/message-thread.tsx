@@ -1,3 +1,30 @@
+  const handleClearChat = useCallback(async () => {
+    if (!conversation || !canSendMessages) return;
+    if (!window.confirm(t("clearChatConfirm"))) return;
+
+    try {
+      const response = await fetch(
+        `/api/inbox/conversations/${conversation.id}/messages`,
+        { method: "DELETE" },
+      );
+      const payload = await response.json().catch(() => ({}));
+
+      if (!response.ok) {
+        throw new Error(payload?.error || `HTTP ${response.status}`);
+      }
+
+      onMessagesLoaded([]);
+      toast.success(t("clearChatSuccess"));
+      onRefresh?.();
+    } catch (error) {
+      toast.error(
+        t("clearChatFailed", {
+          reason: error instanceof Error ? error.message : "Unknown error",
+        }),
+      );
+    }
+  }, [conversation, canSendMessages, onMessagesLoaded, onRefresh, t]);
+
 "use client";
 
 import { useState, useEffect, useCallback, useRef, useMemo } from "react";
@@ -54,7 +81,7 @@ import { AiThreadBanner } from "./ai-thread-banner";
 import { buildReplyPreview } from "./reply-quote";
 import { renderTemplateBody } from "@/lib/whatsapp/template-body";
 import { contactHandle } from "@/lib/whatsapp/wa-identity";
-import { toast } from "sonner";
+import { toast } from "sonner";\nimport { useCan } from "@/hooks/use-can";
 
 interface ReplyDraft {
   id: string;
@@ -169,7 +196,7 @@ export function MessageThread({
   const tTimer = useTranslations("Inbox.sessionTimer");
   const tQuote = useTranslations("Inbox.replyQuote");
 
-  const { user } = useAuth();
+  const { user } = useAuth();\n  const canSendMessages = useCan("send-messages");
   const { getPresence, getRow, now } = usePresence();
   const [loading, setLoading] = useState(false);
   const [loadingOlder, setLoadingOlder] = useState(false);
@@ -1066,6 +1093,18 @@ export function MessageThread({
                   {t(`status${opt.label}`)}
                 </DropdownMenuItem>
               ))}
+              {canSendMessages && (
+                <>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem
+                    onClick={() => void handleClearChat()}
+                    className="text-sm text-red-400 focus:text-red-400"
+                  >
+                    <Trash2 className="mr-2 h-3.5 w-3.5" />
+                    {t("clearChat")}
+                  </DropdownMenuItem>
+                </>
+              )}
             </DropdownMenuContent>
           </DropdownMenu>
 
