@@ -12,7 +12,7 @@ export async function GET(request: Request) {
   const admin = createAdminClient()
   const { data: acquired, error: lockError } = await admin.rpc(
     'try_acquire_cron_lock',
-    { p_name: 'automation-cron', p_ttl_seconds: 240 },
+    { p_name: 'scheduled-workers', p_ttl_seconds: 240 },
   )
   if (lockError) {
     console.error('[automations-cron] lock acquisition failed:', lockError)
