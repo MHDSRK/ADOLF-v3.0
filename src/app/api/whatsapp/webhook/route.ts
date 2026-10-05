@@ -1,6 +1,8 @@
 import { NextResponse, after } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { decrypt, encrypt, isLegacyFormat } from '@/lib/whatsapp/encryption'
+import { createAdminClient } from '@/lib/supabase/admin'
+import { hashVerifyToken } from '@/lib/whatsapp/verify-token'
 import { getMediaUrl } from '@/lib/whatsapp/meta-api'
 import { mirrorInboundMedia } from '@/lib/whatsapp/mirror-inbound-media'
 import { normalizePhone } from '@/lib/whatsapp/phone-utils'
@@ -29,18 +31,7 @@ import {
 // plan's ceiling). Tune as needed.
 export const maxDuration = 60
 
-// Lazy-initialized to avoid build-time crash when env vars are missing
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-let _adminClient: any = null
-function supabaseAdmin() {
-  if (!_adminClient) {
-    _adminClient = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY!
-    )
-  }
-  return _adminClient
-}
+const supabaseAdmin = createAdminClient
 
 interface WhatsAppMessage {
   id: string
@@ -149,26 +140,61 @@ export async function GET(request: Request) {
       )
     }
 
-    // Fetch all whatsapp configs to check verify tokens
-    const { data: configs, error: configError } = await supabaseAdmin()
+    const admin = supabaseAdmin()
+    const tokenHash = hashVerifyToken(verifyToken)
+
+    // Current rows use an indexed deterministic HMAC. This avoids loading or
+    // decrypting every WhatsApp credential in the system for each Meta
+    // handshake.
+    const { data: hashedMatches, error: hashError } = await admin
       .from('whatsapp_config')
       .select('id, verify_token')
+      .eq('verify_token_hash', tokenHash)
+      .limit(2)
 
-    if (configError || !configs) {
-      console.error('Error fetching configs for verification:', configError)
+    if (hashError) {
+      console.error('[webhook] verify-token hash lookup failed:', hashError)
       return NextResponse.json(
         { error: 'Verification failed' },
         { status: 403 }
       )
     }
 
-    // Check if any config's verify_token matches. Also collect the
-    // matching row so we can opportunistically upgrade its token to
-    // GCM if it was still in the legacy CBC format.
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    let matchedConfig: any = null
-    for (const config of configs) {
-      if (!config.verify_token) continue
+    if (hashedMatches && hashedMatches.length > 1) {
+      console.error('[webhook] duplicate webhook verification token hash')
+      return NextResponse.json(
+        { error: 'Verification failed' },
+        { status: 403 }
+      )
+    }
+
+    if (hashedMatches?.length === 1) {
+      return new Response(challenge, {
+        status: 200,
+        headers: { 'Content-Type': 'text/plain' },
+      })
+    }
+
+    // Legacy rows created before migration 044 have no hash. This fallback
+    // is intentionally restricted to rows that need migration, so the
+    // expensive decrypt-and-compare path disappears after each connection
+    // has been verified/saved once.
+    const { data: legacyConfigs, error: legacyError } = await admin
+      .from('whatsapp_config')
+      .select('id, verify_token')
+      .is('verify_token_hash', null)
+      .not('verify_token', 'is', null)
+
+    if (legacyError) {
+      console.error('[webhook] legacy verify-token lookup failed:', legacyError)
+      return NextResponse.json(
+        { error: 'Verification failed' },
+        { status: 403 }
+      )
+    }
+
+    let matchedConfig: { id: string; verify_token: string } | null = null
+    for (const config of legacyConfigs ?? []) {
       try {
         if (decrypt(config.verify_token) === verifyToken) {
           matchedConfig = config
@@ -179,34 +205,37 @@ export async function GET(request: Request) {
       }
     }
 
-    if (matchedConfig) {
-      // Fire-and-forget GCM upgrade. Safe to run on every subscribe
-      // since it's a no-op once the column is already GCM.
-      if (isLegacyFormat(matchedConfig.verify_token)) {
-        void supabaseAdmin()
-          .from('whatsapp_config')
-          .update({ verify_token: encrypt(verifyToken) })
-          .eq('id', matchedConfig.id)
-          .then(({ error }: { error: unknown }) => {
-            if (error) {
-              console.warn(
-                '[webhook] verify_token GCM upgrade failed:',
-                (error as { message?: string })?.message ?? error,
-              )
-            }
-          })
-      }
-      // Return challenge as plain text
-      return new Response(challenge, {
-        status: 200,
-        headers: { 'Content-Type': 'text/plain' },
-      })
+    if (!matchedConfig) {
+      return NextResponse.json(
+        { error: 'Verification token mismatch' },
+        { status: 403 }
+      )
     }
 
-    return NextResponse.json(
-      { error: 'Verification token mismatch' },
-      { status: 403 }
-    )
+    // Upgrade legacy storage synchronously. A successful Meta handshake must
+    // not depend on a detached promise that can be terminated with the
+    // invocation. The update is small and is part of the verification work.
+    const { error: upgradeError } = await admin
+      .from('whatsapp_config')
+      .update({
+        verify_token: encrypt(verifyToken),
+        verify_token_hash: tokenHash,
+      })
+      .eq('id', matchedConfig.id)
+      .is('verify_token_hash', null)
+
+    if (upgradeError) {
+      console.error('[webhook] verify-token migration failed:', upgradeError)
+      return NextResponse.json(
+        { error: 'Verification failed' },
+        { status: 503 }
+      )
+    }
+
+    return new Response(challenge, {
+      status: 200,
+      headers: { 'Content-Type': 'text/plain' },
+    })
   } catch (error) {
     console.error('Error in webhook GET verification:', error)
     return NextResponse.json(
