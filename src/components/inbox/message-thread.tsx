@@ -506,7 +506,6 @@ export function MessageThread({
 
   // Auto-scroll to bottom on new messages
   useEffect(() => {
-    if (loadingOlderRef.current) return;
     if (scrollRef.current) {
       const el = scrollRef.current;
       el.scrollTop = el.scrollHeight;
