@@ -55,28 +55,6 @@ export const viewport: Viewport = {
   colorScheme: "dark light",
 };
 
-// Inline boot script — runs before React hydrates so the user's
-// chosen mode (data-mode) is on the <html> element before first paint.
-// Without this every page load flashes the server-rendered default for a
-// frame before the React tree mounts and applies the saved choice.
-//
-// Kept dependency-free (no imports, no JSX) so the browser can run it
-// before React hydrates.
-const THEME_BOOT_SCRIPT = `
-(function(){
-  var d = document.documentElement;
-  try {
-    var MODE_KEY = "wacrm.mode";
-    var MODE_DEFAULT = "dark";
-    var MODES = ["light","dark"];
-    var savedMode = localStorage.getItem(MODE_KEY);
-    d.dataset.mode = MODES.indexOf(savedMode) !== -1 ? savedMode : MODE_DEFAULT;
-  } catch (_e) {
-    d.dataset.mode = "dark";
-  }
-})();
-`;
-
 export default async function RootLayout({
   children,
 }: Readonly<{
@@ -96,11 +74,7 @@ export default async function RootLayout({
       suppressHydrationWarning
     >
       <head>
-        <Script
-          id="theme-boot"
-          strategy="beforeInteractive"
-          dangerouslySetInnerHTML={{ __html: THEME_BOOT_SCRIPT }}
-        />
+        <Script src="/theme-boot.js" strategy="beforeInteractive" />
       </head>
       <body className="min-h-full bg-background text-foreground font-sans">
         <NextIntlClientProvider messages={messages} locale={locale}>
