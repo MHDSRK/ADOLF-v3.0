@@ -27,6 +27,7 @@ import {
   finishWebhookDelivery,
   recordWebhookDelivery,
 } from '@/lib/whatsapp/webhook-diagnostics'
+import { processCoexistenceEchoes } from '@/lib/whatsapp/coexistence-echo'
 
 // The `after()` callback in POST runs within this route's max duration.
 // Inbound processing can fan out to per-media Meta verification calls, so
@@ -110,6 +111,20 @@ interface WhatsAppWebhookEntry {
         parent_user_id?: string
       }>
       messages?: WhatsAppMessage[]
+      message_echoes?: Array<{
+        id: string
+        from?: string
+        to?: string
+        timestamp: string
+        type: string
+        text?: { body?: string }
+        image?: { id?: string; mime_type?: string; caption?: string }
+        video?: { id?: string; mime_type?: string; caption?: string }
+        document?: { id?: string; mime_type?: string; filename?: string; caption?: string }
+        audio?: { id?: string; mime_type?: string }
+        sticker?: { id?: string; mime_type?: string }
+        location?: { latitude?: number; longitude?: number; name?: string; address?: string }
+      }>
       statuses?: Array<{
         id: string
         status: string
@@ -333,6 +348,59 @@ async function processWebhook(body: { entry?: WhatsAppWebhookEntry[] }) {
       }
 
       const value = change.value
+
+      // WhatsApp Business App coexistence sends business-originated
+      // messages on a dedicated field. These are outbound messages, so
+      // they must be mirrored into the inbox rather than treated as
+      // customer messages.
+      if (change.field === 'smb_message_echoes') {
+        const phoneNumberId = value.metadata.phone_number_id
+        const { data: configRows, error: configError } = await supabaseAdmin()
+          .from('whatsapp_config')
+          .select('*')
+          .eq('phone_number_id', phoneNumberId)
+
+        if (configError) {
+          console.error(
+            'Error fetching whatsapp_config for coexistence phone_number_id:',
+            phoneNumberId,
+            configError,
+          )
+          continue
+        }
+        if (!configRows || configRows.length === 0) {
+          console.error(
+            'No config found for coexistence phone_number_id:',
+            phoneNumberId,
+          )
+          continue
+        }
+        if (configRows.length > 1) {
+          console.error(
+            `Multiple configs (${configRows.length}) found for coexistence phone_number_id:`,
+            phoneNumberId,
+          )
+          continue
+        }
+
+        const config = configRows[0]
+        await processCoexistenceEchoes({
+          db: supabaseAdmin(),
+          change: {
+            field: change.field,
+            value: {
+              metadata: value.metadata,
+              message_echoes: value.message_echoes,
+            },
+          },
+          accountId: config.account_id,
+          configOwnerUserId: config.user_id,
+          whatsappConfigId: config.id,
+          accessToken: decrypt(config.access_token),
+          mirrorMedia: config.mirror_inbound_media !== false,
+        })
+        continue
+      }
 
       // Handle status updates
       if (value.statuses) {
