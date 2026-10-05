@@ -210,14 +210,22 @@ export async function dispatchInboundToAiReply(
       },
     )
     if (claimErr) {
-      // A real error here (vs. losing the cap race) is almost always a
-      // deploy issue — e.g. `claim_ai_reply_slot` not EXECUTE-able by the
-      // service role, or the migration not applied. Log it loudly: a
-      // silent return makes "auto-reply never fires" undiagnosable.
+      // A real error here must release the inbound idempotency claim so a
+      // later Meta retry can safely try again after the deployment issue is
+      // fixed.
       console.error('[ai auto-reply] claim_ai_reply_slot failed:', claimErr)
+      if (claimId) {
+        await failAiReplyClaim(db, claimId, claimErr.message)
+      }
       return
     }
-    if (claimed !== true) return // lost the per-conversation cap race
+    if (claimed !== true) {
+      // Another inbound consumed the final reply slot. This delivery did not
+      // need an AI send, so its idempotency claim is complete rather than
+      // left permanently in `processing`.
+      if (claimId) await completeAiReplyClaim(db, claimId)
+      return
+    }
 
     await engineSendText({
       accountId,
@@ -247,6 +255,9 @@ async function claimAiReply(
   conversationId: string,
   inboundMessageId: string,
 ): Promise<string | null> {
+  const now = new Date().toISOString()
+  const staleBefore = new Date(Date.now() - 10 * 60 * 1000).toISOString()
+
   const { data, error } = await db
     .from('ai_reply_claims')
     .insert({
@@ -264,19 +275,50 @@ async function claimAiReply(
     return null
   }
 
-  // A previous attempt failed before completion. Reclaim that same inbound
-  // delivery; an already-processing or completed claim belongs to another
-  // invocation and must not be duplicated.
+  const { data: existing, error: lookupError } = await db
+    .from('ai_reply_claims')
+    .select('id, status, claimed_at')
+    .eq('account_id', accountId)
+    .eq('inbound_message_id', inboundMessageId)
+    .maybeSingle()
+
+  if (lookupError || !existing) {
+    if (lookupError) console.error('[ai auto-reply] claim lookup failed:', lookupError)
+    return null
+  }
+  if (existing.status === 'completed') return null
+
+  // Recover a crashed worker after the lease expires. A fresh processing
+  // claim is still protected by the status + timestamp predicates, so two
+  // concurrent retries cannot both take over the same active claim.
+  if (existing.status === 'processing') {
+    if (existing.claimed_at && existing.claimed_at >= staleBefore) return null
+    const { data: reclaimed, error: reclaimError } = await db
+      .from('ai_reply_claims')
+      .update({
+        status: 'processing',
+        claimed_at: now,
+        completed_at: null,
+        error_message: null,
+      })
+      .eq('id', existing.id)
+      .eq('status', 'processing')
+      .lt('claimed_at', staleBefore)
+      .select('id')
+      .maybeSingle()
+    if (reclaimError) console.error('[ai auto-reply] claim reclaim failed:', reclaimError)
+    return reclaimed?.id ?? null
+  }
+
   const { data: retry, error: retryError } = await db
     .from('ai_reply_claims')
     .update({
       status: 'processing',
-      claimed_at: new Date().toISOString(),
+      claimed_at: now,
       completed_at: null,
       error_message: null,
     })
-    .eq('account_id', accountId)
-    .eq('inbound_message_id', inboundMessageId)
+    .eq('id', existing.id)
     .eq('status', 'failed')
     .select('id')
     .maybeSingle()
@@ -287,7 +329,6 @@ async function claimAiReply(
   }
   return retry?.id ?? null
 }
-
 async function completeAiReplyClaim(
   db: ReturnType<typeof supabaseAdmin>,
   claimId: string,
