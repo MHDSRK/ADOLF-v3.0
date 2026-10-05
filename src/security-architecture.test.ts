@@ -22,8 +22,17 @@ describe('server authorization architecture', () => {
     const missing = routes.filter(
       (path) => !readFileSync(path, 'utf8').includes('requireApiKey('),
     )
+    const privilegedImports = routes.filter((path) => {
+      const source = readFileSync(path, 'utf8')
+      return (
+        source.includes('@/lib/supabase/admin') ||
+        source.includes('@/lib/automations/admin-client') ||
+        source.includes('@/lib/flows/admin-client')
+      )
+    })
 
     expect(missing).toEqual([])
+    expect(privilegedImports).toEqual([])
   })
 
   it('keeps the Supabase secret key behind the server-only boundary', () => {
