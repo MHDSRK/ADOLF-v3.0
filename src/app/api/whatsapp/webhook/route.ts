@@ -23,6 +23,10 @@ import {
   handleTemplateWebhookChange,
   isTemplateWebhookField,
 } from '@/lib/whatsapp/template-webhook'
+import {
+  finishWebhookDelivery,
+  recordWebhookDelivery,
+} from '@/lib/whatsapp/webhook-diagnostics'
 
 // The `after()` callback in POST runs within this route's max duration.
 // Inbound processing can fan out to per-media Meta verification calls, so
@@ -258,6 +262,16 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 })
   }
 
+  // Persist a privacy-safe receipt record BEFORE handing work to the
+  // serverless after() callback. This lets us distinguish:
+  //   1) Meta never reached ADOLF,
+  //   2) Meta reached ADOLF but processing failed,
+  //   3) Meta reached ADOLF and processing completed.
+  const diagnosticId = await recordWebhookDelivery(rawBody, body).catch((error) => {
+    console.error('[webhook] diagnostic receipt failed:', error)
+    return null
+  })
+
   // Process AFTER the response so we ack Meta within their ~20s timeout
   // (a slow ack triggers Meta retries + duplicate inserts), while still
   // guaranteeing the work runs to completion.
@@ -275,8 +289,18 @@ export async function POST(request: Request) {
   after(async () => {
     try {
       await processWebhook(body)
+      if (diagnosticId) {
+        await finishWebhookDelivery(diagnosticId, 'processed')
+      }
     } catch (error) {
       console.error('Error processing webhook:', error)
+      if (diagnosticId) {
+        await finishWebhookDelivery(
+          diagnosticId,
+          'failed',
+          error instanceof Error ? error.message : String(error)
+        )
+      }
     }
   })
 
