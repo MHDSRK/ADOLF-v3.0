@@ -536,7 +536,7 @@ export function MessageComposer({
   // ---- Render --------------------------------------------------------
 
   return (
-    <div className="border-t border-border bg-card px-3 pt-3 pb-[calc(1.25rem+env(safe-area-inset-bottom))]">
+    <div className="bg-card px-3 pt-3 pb-[calc(2.25rem+env(safe-area-inset-bottom))]">
       {replyTo && (
         <div className="mb-2">
           <ReplyQuote
@@ -549,7 +549,7 @@ export function MessageComposer({
       {sessionExpired && (
         <div className="mb-2 flex items-center justify-between rounded-lg bg-amber-500/10 px-3 py-2">
           <p className="text-xs text-amber-400">
-            {t("sessionExpiredHint")}
+            Session expired.
           </p>
           <Button
             variant="ghost"
@@ -557,8 +557,7 @@ export function MessageComposer({
             className="h-7 text-xs text-amber-400 hover:text-amber-300"
             onClick={onOpenTemplates}
           >
-            <LayoutTemplate className="mr-1 h-3 w-3" />
-            {t("templates")}
+            <LayoutTemplate className="h-4 w-4" aria-hidden="true" />
           </Button>
         </div>
       )}
@@ -731,13 +730,7 @@ export function MessageComposer({
             value={text}
             onChange={handleChange}
             onKeyDown={handleKeyDown}
-            placeholder={
-              readOnly
-                ? t("readOnlyPlaceholder")
-                : sessionExpired
-                  ? t("sessionExpiredPlaceholder")
-                  : t("typeMessagePlaceholder")
-            }
+            placeholder=""
             disabled={sessionExpired || readOnly}
             rows={1}
             // Textarea keeps its own inline title — the GatedButton
