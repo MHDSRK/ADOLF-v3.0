@@ -1,1 +1,126 @@
-import type { SupabaseClient } from '@supabase/supabase-js'\nimport { getMediaUrl } from '@/lib/whatsapp/meta-api'\nimport { mirrorInboundMedia } from '@/lib/whatsapp/mirror-inbound-media'\nimport { resolveConversationByPhone } from '@/lib/whatsapp/resolve-conversation'\n\ntype MessageEcho = {\n  id: string\n  from?: string\n  to?: string\n  timestamp: string\n  type: string\n  text?: { body?: string }\n  image?: { id?: string; mime_type?: string; caption?: string }\n  video?: { id?: string; mime_type?: string; caption?: string }\n  document?: { id?: string; mime_type?: string; filename?: string; caption?: string }\n  audio?: { id?: string; mime_type?: string }\n  sticker?: { id?: string; mime_type?: string }\n  location?: { latitude?: number; longitude?: number; name?: string; address?: string }\n}\n\ntype EchoChangeValue = {\n  metadata?: { phone_number_id?: string }\n  message_echoes?: MessageEcho[]\n}\n\nexport type CoexistenceEchoChange = {\n  field: string\n  value: EchoChangeValue\n}\n\nfunction echoContent(echo: MessageEcho) {\n  switch (echo.type) {\n    case 'text': return { contentType: 'text', contentText: echo.text?.body ?? null, mediaUrl: null, mediaType: null, mediaId: null }\n    case 'image': return { contentType: 'image', contentText: echo.image?.caption ?? null, mediaUrl: echo.image?.id ? '/api/whatsapp/media/' + echo.image.id : null, mediaType: echo.image?.mime_type ?? null, mediaId: echo.image?.id ?? null }\n    case 'video': return { contentType: 'video', contentText: echo.video?.caption ?? null, mediaUrl: echo.video?.id ? '/api/whatsapp/media/' + echo.video.id : null, mediaType: echo.video?.mime_type ?? null, mediaId: echo.video?.id ?? null }\n    case 'document': return { contentType: 'document', contentText: echo.document?.caption ?? echo.document?.filename ?? null, mediaUrl: echo.document?.id ? '/api/whatsapp/media/' + echo.document.id : null, mediaType: echo.document?.mime_type ?? null, mediaId: echo.document?.id ?? null }\n    case 'audio': return { contentType: 'audio', contentText: null, mediaUrl: echo.audio?.id ? '/api/whatsapp/media/' + echo.audio.id : null, mediaType: echo.audio?.mime_type ?? null, mediaId: echo.audio?.id ?? null }\n    case 'sticker': return { contentType: 'image', contentText: null, mediaUrl: echo.sticker?.id ? '/api/whatsapp/media/' + echo.sticker.id : null, mediaType: echo.sticker?.mime_type ?? null, mediaId: echo.sticker?.id ?? null }\n    case 'location': {\n      const loc = echo.location\n      const contentText = loc ? [loc.name, loc.address, loc.latitude != null && loc.longitude != null ? String(loc.latitude) + ',' + String(loc.longitude) : null].filter(Boolean).join(' - ') : null\n      return { contentType: 'location', contentText, mediaUrl: null, mediaType: null, mediaId: null }\n    }\n    default: return { contentType: 'text', contentText: null, mediaUrl: null, mediaType: null, mediaId: null }\n  }\n}\n\n/**\n * Mirrors messages sent from the WhatsApp Business app during Cloud API\n * coexistence into the ADOLF conversation history.\n */\nexport async function processCoexistenceEchoes(args: {\n  db: SupabaseClient\n  change: CoexistenceEchoChange\n  accountId: string\n  configOwnerUserId: string\n  whatsappConfigId: string\n  accessToken: string\n  mirrorMedia: boolean\n}): Promise<void> {\n  const echoes = args.change.value.message_echoes ?? []\n\n  for (const echo of echoes) {\n    if (!echo.id || !echo.to) {\n      console.warn('[webhook] coexistence echo missing id or recipient; skipping')\n      continue\n    }\n\n    const conversation = await resolveConversationByPhone(\n      args.db, args.accountId, echo.to, null, args.whatsappConfigId,\n    ).catch((error) => {\n      console.error('[webhook] failed to resolve coexistence echo conversation:', error)\n      return null\n    })\n    if (!conversation) continue\n\n    const parsed = echoContent(echo)\n    let mediaUrl = parsed.mediaUrl\n    if (parsed.mediaId && args.mirrorMedia) {\n      try {\n        const media = await getMediaUrl({ mediaId: parsed.mediaId, accessToken: args.accessToken })\n        const mirrored = await mirrorInboundMedia({\n          storage: args.db.storage,\n          accountId: args.accountId,\n          mediaId: parsed.mediaId,\n          downloadUrl: media.url,\n          accessToken: args.accessToken,\n          mimeType: media.mimeType,\n          fileSize: media.fileSize,\n          fileName: echo.document?.filename,\n          messageTimestamp: echo.timestamp,\n        })\n        if (mirrored) mediaUrl = mirrored\n      } catch (error) {\n        console.error('[webhook] failed to mirror coexistence echo media:', error instanceof Error ? error.message : error)\n      }\n    }\n\n    const createdAt = new Date(parseInt(echo.timestamp, 10) * 1000).toISOString()\n    const { data: insertedRows, error: insertError } = await args.db.from('messages').upsert({\n      conversation_id: conversation.conversationId,\n      sender_type: 'agent',\n      sender_id: args.configOwnerUserId,\n      content_type: parsed.contentType,\n      content_text: parsed.contentText,\n      media_url: mediaUrl,\n      media_type: parsed.mediaType,\n      message_id: echo.id,\n      status: 'sent',\n      created_at: createdAt,\n    }, { onConflict: 'conversation_id,message_id', ignoreDuplicates: true }).select('id')\n\n    if (insertError) {\n      console.error('[webhook] failed to persist coexistence echo:', insertError)\n      continue\n    }\n    if (!insertedRows || insertedRows.length === 0) continue\n\n    const { error: conversationError } = await args.db.from('conversations').update({\n      last_message_text: parsed.contentText ?? '[' + parsed.contentType + ']',\n      last_message_at: createdAt,\n      updated_at: new Date().toISOString(),\n    }).eq('id', conversation.conversationId)\n    if (conversationError) console.error('[webhook] failed to update conversation for coexistence echo:', conversationError)\n  }\n}
+import type { SupabaseClient } from '@supabase/supabase-js'
+import { getMediaUrl } from '@/lib/whatsapp/meta-api'
+import { mirrorInboundMedia } from '@/lib/whatsapp/mirror-inbound-media'
+import { resolveConversationByPhone } from '@/lib/whatsapp/resolve-conversation'
+
+type MessageEcho = {
+  id: string
+  from?: string
+  to?: string
+  timestamp: string
+  type: string
+  text?: { body?: string }
+  image?: { id?: string; mime_type?: string; caption?: string }
+  video?: { id?: string; mime_type?: string; caption?: string }
+  document?: { id?: string; mime_type?: string; filename?: string; caption?: string }
+  audio?: { id?: string; mime_type?: string }
+  sticker?: { id?: string; mime_type?: string }
+  location?: { latitude?: number; longitude?: number; name?: string; address?: string }
+}
+
+type EchoChangeValue = {
+  metadata?: { phone_number_id?: string }
+  message_echoes?: MessageEcho[]
+}
+
+export type CoexistenceEchoChange = {
+  field: string
+  value: EchoChangeValue
+}
+
+function echoContent(echo: MessageEcho) {
+  switch (echo.type) {
+    case 'text': return { contentType: 'text', contentText: echo.text?.body ?? null, mediaUrl: null, mediaType: null, mediaId: null }
+    case 'image': return { contentType: 'image', contentText: echo.image?.caption ?? null, mediaUrl: echo.image?.id ? '/api/whatsapp/media/' + echo.image.id : null, mediaType: echo.image?.mime_type ?? null, mediaId: echo.image?.id ?? null }
+    case 'video': return { contentType: 'video', contentText: echo.video?.caption ?? null, mediaUrl: echo.video?.id ? '/api/whatsapp/media/' + echo.video.id : null, mediaType: echo.video?.mime_type ?? null, mediaId: echo.video?.id ?? null }
+    case 'document': return { contentType: 'document', contentText: echo.document?.caption ?? echo.document?.filename ?? null, mediaUrl: echo.document?.id ? '/api/whatsapp/media/' + echo.document.id : null, mediaType: echo.document?.mime_type ?? null, mediaId: echo.document?.id ?? null }
+    case 'audio': return { contentType: 'audio', contentText: null, mediaUrl: echo.audio?.id ? '/api/whatsapp/media/' + echo.audio.id : null, mediaType: echo.audio?.mime_type ?? null, mediaId: echo.audio?.id ?? null }
+    case 'sticker': return { contentType: 'image', contentText: null, mediaUrl: echo.sticker?.id ? '/api/whatsapp/media/' + echo.sticker.id : null, mediaType: echo.sticker?.mime_type ?? null, mediaId: echo.sticker?.id ?? null }
+    case 'location': {
+      const loc = echo.location
+      const contentText = loc ? [loc.name, loc.address, loc.latitude != null && loc.longitude != null ? String(loc.latitude) + ',' + String(loc.longitude) : null].filter(Boolean).join(' - ') : null
+      return { contentType: 'location', contentText, mediaUrl: null, mediaType: null, mediaId: null }
+    }
+    default: return { contentType: 'text', contentText: null, mediaUrl: null, mediaType: null, mediaId: null }
+  }
+}
+
+/**
+ * Mirrors messages sent from the WhatsApp Business app during Cloud API
+ * coexistence into the ADOLF conversation history.
+ */
+export async function processCoexistenceEchoes(args: {
+  db: SupabaseClient
+  change: CoexistenceEchoChange
+  accountId: string
+  configOwnerUserId: string
+  whatsappConfigId: string
+  accessToken: string
+  mirrorMedia: boolean
+}): Promise<void> {
+  const echoes = args.change.value.message_echoes ?? []
+
+  for (const echo of echoes) {
+    if (!echo.id || !echo.to) {
+      console.warn('[webhook] coexistence echo missing id or recipient; skipping')
+      continue
+    }
+
+    const conversation = await resolveConversationByPhone(
+      args.db, args.accountId, echo.to, null, args.whatsappConfigId,
+    ).catch((error) => {
+      console.error('[webhook] failed to resolve coexistence echo conversation:', error)
+      return null
+    })
+    if (!conversation) continue
+
+    const parsed = echoContent(echo)
+    let mediaUrl = parsed.mediaUrl
+    if (parsed.mediaId && args.mirrorMedia) {
+      try {
+        const media = await getMediaUrl({ mediaId: parsed.mediaId, accessToken: args.accessToken })
+        const mirrored = await mirrorInboundMedia({
+          storage: args.db.storage,
+          accountId: args.accountId,
+          mediaId: parsed.mediaId,
+          downloadUrl: media.url,
+          accessToken: args.accessToken,
+          mimeType: media.mimeType,
+          fileSize: media.fileSize,
+          fileName: echo.document?.filename,
+          messageTimestamp: echo.timestamp,
+        })
+        if (mirrored) mediaUrl = mirrored
+      } catch (error) {
+        console.error('[webhook] failed to mirror coexistence echo media:', error instanceof Error ? error.message : error)
+      }
+    }
+
+    const createdAt = new Date(parseInt(echo.timestamp, 10) * 1000).toISOString()
+    const { data: insertedRows, error: insertError } = await args.db.from('messages').upsert({
+      conversation_id: conversation.conversationId,
+      sender_type: 'agent',
+      sender_id: args.configOwnerUserId,
+      content_type: parsed.contentType,
+      content_text: parsed.contentText,
+      media_url: mediaUrl,
+      media_type: parsed.mediaType,
+      message_id: echo.id,
+      status: 'sent',
+      created_at: createdAt,
+    }, { onConflict: 'conversation_id,message_id', ignoreDuplicates: true }).select('id')
+
+    if (insertError) {
+      console.error('[webhook] failed to persist coexistence echo:', insertError)
+      continue
+    }
+    if (!insertedRows || insertedRows.length === 0) continue
+
+    const { error: conversationError } = await args.db.from('conversations').update({
+      last_message_text: parsed.contentText ?? '[' + parsed.contentType + ']',
+      last_message_at: createdAt,
+      updated_at: new Date().toISOString(),
+    }).eq('id', conversation.conversationId)
+    if (conversationError) console.error('[webhook] failed to update conversation for coexistence echo:', conversationError)
+  }
+}
