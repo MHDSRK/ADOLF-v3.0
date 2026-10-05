@@ -1,0 +1,38 @@
+name: Scheduler
+
+# Vercel Hobby rejects cron expressions that run more than once per day.
+# GitHub Actions supports scheduled workflows as frequently as every five
+# minutes, so the application keeps its cron work as authenticated HTTP
+# endpoints and uses one scheduler to invoke both workers.
+#
+# Required repository secrets:
+#   ADOLF_CRON_BASE_URL — production origin, e.g. https://crm.example.com
+#   CRON_SECRET        — same value configured in Vercel
+#
+# Scheduled workflows run from the repository default branch. Merge this
+# workflow to the default branch before expecting the schedule to fire.
+
+on:
+  schedule:
+    - cron: '*/5 * * * *'
+  workflow_dispatch:
+
+concurrency:
+  group: adolf-scheduler
+  cancel-in-progress: false
+
+jobs:
+  run:
+    name: Run scheduled workers
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - name: Invoke scheduler
+        env:
+          BASE_URL: ${{ secrets.ADOLF_CRON_BASE_URL }}
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+        run: |
+          set -euo pipefail
+          test -n "$BASE_URL"
+          test -n "$CRON_SECRET"
+          curl --fail-with-body --silent --show-error             --retry 2 --retry-delay 5 --max-time 55             -H "Authorization: Bearer $CRON_SECRET"             "$BASE_URL/api/cron"
