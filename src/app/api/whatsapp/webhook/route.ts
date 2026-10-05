@@ -804,14 +804,39 @@ async function processMessage(
   const contactRecord = contactOutcome.contact
 
   // Find or create conversation
+  const messageCreatedAt = new Date(
+    parseInt(message.timestamp, 10) * 1000
+  );
+
+  if (Number.isNaN(messageCreatedAt.getTime())) {
+    console.error('[webhook] invalid inbound message timestamp:', message.timestamp)
+    return
+  }
+
   const convResult = await findOrCreateConversation(
     accountId,
     configOwnerUserId,
     contactRecord.id,
-    whatsappConfigId
+    whatsappConfigId,
+    messageCreatedAt,
   )
   if (!convResult) return
   const conversation = convResult.conversation
+
+  // Meta can deliver backlog/history messages after a webhook is connected.
+  // They must never become part of the live inbox. The conversation-level
+  // cutoff is advanced when the chat is created or cleared.
+  const historyCutoff = conversation.message_history_cutoff_at
+    ? new Date(conversation.message_history_cutoff_at)
+    : null
+
+  if (historyCutoff && messageCreatedAt < historyCutoff) {
+    console.info(
+      '[webhook] ignored inbound message older than conversation history cutoff:',
+      message.id,
+    )
+    return
+  }
 
   // Emit conversation.created as soon as the thread is opened — BEFORE
   // the reaction short-circuit below — so a conversation first opened by
@@ -1495,6 +1520,7 @@ async function findOrCreateConversation(
   configOwnerUserId: string,
   contactId: string,
   whatsappConfigId: string,
+  messageCreatedAt: Date,
 ) {
   // Look for an existing conversation in this account, oldest-first.
   //
@@ -1527,6 +1553,19 @@ async function findOrCreateConversation(
     return { conversation: existingRows[0], created: false }
   }
 
+  // A brand-new conversation must only be created from a live webhook
+  // delivery. This small tolerance covers normal Meta delivery latency
+  // without allowing an already-existing WhatsApp history backlog to open
+  // a new inbox conversation.
+  const LIVE_MESSAGE_TOLERANCE_MS = 5 * 60 * 1000
+  if (messageCreatedAt.getTime() < Date.now() - LIVE_MESSAGE_TOLERANCE_MS) {
+    console.info(
+      '[webhook] ignored historical message that would create a new conversation:',
+      messageCreatedAt.toISOString(),
+    )
+    return null
+  }
+
   // Create new conversation. Same tenancy + audit split as
   // findOrCreateContact above.
   const { data: newConv, error: createError } = await supabaseAdmin()
@@ -1536,6 +1575,7 @@ async function findOrCreateConversation(
       user_id: configOwnerUserId,
       contact_id: contactId,
       whatsapp_config_id: whatsappConfigId,
+      message_history_cutoff_at: new Date().toISOString(),
     })
     .select()
     .single()
