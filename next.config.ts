@@ -52,7 +52,6 @@ const SECURITY_HEADERS = [
       "object-src 'none'",
     ].join("; "),
   },
-  },
 ] as const;
 
 const nextConfig: NextConfig = {
