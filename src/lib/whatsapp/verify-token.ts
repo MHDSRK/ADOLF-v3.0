@@ -1,25 +1,28 @@
-import { encrypt } from './encryption';
+import crypto from 'node:crypto'
+import { encrypt } from './encryption'
 
-/**
- * Decide what `whatsapp_config.verify_token` should hold after a config save.
- *
- * The settings form never shows the stored token (it is encrypted at rest
- * and the GET endpoint does not return it), so the field arrives empty on
- * every save that did not deliberately change it. Empty therefore means
- * "keep what is stored", not "clear it" — the previous
- * `incoming ? encrypt(incoming) : null` nulled the token whenever any OTHER
- * field was saved. Measured live on 2026-09-05: the row had
- * verify_token = NULL and every Meta GET handshake got 403, which from the
- * outside looks exactly like a wrong token.
- *
- * Clearing the token on its own is not a supported operation; "Reset
- * Configuration" wipes the whole row for that.
- */
+/** Decide what whatsapp_config.verify_token should hold after a config save. */
 export function resolveVerifyTokenForSave(
   incoming: string | null | undefined,
-  existingEncrypted: string | null
+  existingEncrypted: string | null,
 ): string | null {
-  const trimmed = typeof incoming === 'string' ? incoming.trim() : '';
-  if (trimmed) return encrypt(trimmed);
-  return existingEncrypted ?? null;
+  const trimmed = typeof incoming === 'string' ? incoming.trim() : ''
+  if (trimmed) return encrypt(trimmed)
+  return existingEncrypted ?? null
+}
+
+/**
+ * Deterministic lookup key for webhook verification.
+ *
+ * The encrypted token uses a random IV, so it cannot be indexed. HMAC keeps
+ * the plaintext verification token out of the database while giving the
+ * webhook GET route an indexed equality lookup.
+ */
+export function hashVerifyToken(token: string): string {
+  const key = process.env.ENCRYPTION_KEY
+  if (!key) throw new Error('ENCRYPTION_KEY is required')
+  return crypto
+    .createHmac('sha256', Buffer.from(key, 'hex'))
+    .update(token, 'utf8')
+    .digest('hex')
 }
