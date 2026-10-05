@@ -55,6 +55,7 @@ export async function DELETE(
       last_message_text: null,
       last_message_at: null,
       unread_count: 0,
+      message_history_cutoff_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
     })
     .eq('id', id)
