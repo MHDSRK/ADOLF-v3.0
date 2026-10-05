@@ -347,6 +347,46 @@ export async function sendMessageToConversation(
     sendLanguage = resolved.language;
   }
 
+  // Compute the exact Inbox text before the network call so the DB row can
+  // be created in "sending" state. If Meta fails, we retain a durable failed
+  // attempt instead of losing the outbound operation entirely.
+  const persistedText =
+    messageType === 'interactive'
+      ? interactivePayload!.body
+      : messageType === 'template'
+        ? templateContentText(
+            templateRow,
+            templateBodyParams(templateParams, templateMessageParams),
+            contentText
+          )
+        : (contentText ?? null);
+
+  const { data: messageRecord, error: pendingError } = await db
+    .from('messages')
+    .insert({
+      conversation_id: conversationId,
+      sender_type: 'agent',
+      content_type: messageType,
+      content_text: persistedText,
+      media_url: mediaUrl || null,
+      template_name: templateName || null,
+      interactive_payload:
+        messageType === 'interactive' ? interactivePayload : null,
+      message_id: null,
+      status: 'sending',
+      reply_to_message_id: replyToMessageId || null,
+    })
+    .select()
+    .single();
+
+  if (pendingError || !messageRecord) {
+    throw new SendMessageError(
+      'db_error',
+      `Failed to create outbound message record: ${pendingError?.message ?? 'unknown error'}`,
+      500
+    );
+  }
+
   const attempt = async (phone: string): Promise<string> => {
     if (messageType === 'template') {
       const result = await sendTemplateMessage({
@@ -448,6 +488,12 @@ export async function sendMessageToConversation(
   } catch (err) {
     const message =
       err instanceof Error ? err.message : 'Unknown Meta API error';
+    await db
+      .from('messages')
+      .update({ status: 'failed' })
+      .eq('id', messageRecord.id)
+      .eq('status', 'sending');
+
     if (process.env.NODE_ENV !== 'production') {
       console.error('[send-message] Meta send failed for all variants:', message);
     }
@@ -466,52 +512,21 @@ export async function sendMessageToConversation(
       .eq('id', contact.id);
   }
 
-  // Persist the sent message. Field names MUST match the messages
-  // schema (see 001_initial_schema.sql).
-  // Interactive messages persist the body as content_text (so the
-  // conversation-list preview reads sensibly) plus the full structured
-  // payload so the thread can re-render the buttons / rows.
-  //
-  // Templates persist the *substituted* body. The composer pre-renders
-  // and posts it as contentText; every other caller (the public API,
-  // most importantly) sends none, and storing null there left the
-  // Inbox rendering an empty bubble — issue #483.
-  const persistedText =
-    messageType === 'interactive'
-      ? interactivePayload!.body
-      : messageType === 'template'
-        ? templateContentText(
-            templateRow,
-            templateBodyParams(templateParams, templateMessageParams),
-            contentText
-          )
-        : (contentText ?? null);
-
-  const { data: messageRecord, error: msgError } = await db
+  // The outbound row already exists in "sending" state. Attach Meta's wamid
+  // and mark it sent only after Meta accepts the request.
+  const { error: sentUpdateError } = await db
     .from('messages')
-    .insert({
-      conversation_id: conversationId,
-      sender_type: 'agent',
-      content_type: messageType,
-      content_text: persistedText,
-      media_url: mediaUrl || null,
-      template_name: templateName || null,
-      interactive_payload:
-        messageType === 'interactive' ? interactivePayload : null,
+    .update({
       message_id: waMessageId,
       status: 'sent',
-      reply_to_message_id: replyToMessageId || null,
     })
-    .select()
-    .single();
+    .eq('id', messageRecord.id)
+    .eq('status', 'sending');
 
-  if (msgError) {
-    if (process.env.NODE_ENV !== 'production') {
-      console.error('[send-message] error inserting sent message:', msgError);
-    }
+  if (sentUpdateError) {
     throw new SendMessageError(
       'db_error',
-      `Message sent to Meta but failed to save to DB: ${msgError.message}`,
+      `Message accepted by Meta but failed to update its DB state: ${sentUpdateError.message}`,
       500
     );
   }
