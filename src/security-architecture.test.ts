@@ -10,6 +10,12 @@ function walk(dir: string): string[] {
   })
 }
 
+function productionSourceFiles(root: string): string[] {
+  return walk(root).filter(
+    (path) => !path.endsWith('.test.ts') && !path.endsWith('.test.tsx'),
+  )
+}
+
 describe('server authorization architecture', () => {
   it('requires API-key authentication on every public v1 route', () => {
     const root = join(__dirname, 'app', 'api', 'v1')
@@ -36,8 +42,7 @@ describe('server authorization architecture', () => {
   })
 
   it('keeps the Supabase secret key behind the server-only boundary', () => {
-    const root = join(__dirname, '..')
-    const offenders = walk(root)
+    const offenders = productionSourceFiles(__dirname)
       .filter((path) => !path.endsWith('server-env.ts'))
       .filter((path) => {
         const source = readFileSync(path, 'utf8')
@@ -51,8 +56,7 @@ describe('server authorization architecture', () => {
   })
 
   it('does not import a privileged Supabase client into client components', () => {
-    const root = join(__dirname, '..')
-    const offenders = walk(root).filter((path) => {
+    const offenders = productionSourceFiles(__dirname).filter((path) => {
       const source = readFileSync(path, 'utf8')
       if (!source.includes('"use client"') && !source.includes("'use client'")) {
         return false

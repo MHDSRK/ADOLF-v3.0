@@ -321,10 +321,11 @@ function inboundRequest(
       },
     ],
   }
-  return {
-    text: async () => JSON.stringify(body),
-    headers: { get: () => 'sha256=stub' },
-  } as unknown as Request
+  return new Request('https://example.test/api/whatsapp/webhook', {
+    method: 'POST',
+    headers: { 'x-hub-signature-256': 'sha256=stub' },
+    body: JSON.stringify(body),
+  })
 }
 
 async function runWebhook(
@@ -354,13 +355,27 @@ async function runStatusWebhook(status: Record<string, unknown>) {
       },
     ],
   }
-  const res = await POST({
-    text: async () => JSON.stringify(body),
-    headers: { get: () => 'sha256=stub' },
-  } as unknown as Request)
+  const res = await POST(new Request('https://example.test/api/whatsapp/webhook', {
+    method: 'POST',
+    headers: { 'x-hub-signature-256': 'sha256=stub' },
+    body: JSON.stringify(body),
+  }))
   for (const cb of h.state.afterCallbacks) await cb()
   return res
 }
+
+describe('webhook request limits', () => {
+  it('rejects oversized payloads before webhook processing', async () => {
+    const request = new Request('https://example.test/api/whatsapp/webhook', {
+      method: 'POST',
+      headers: { 'x-hub-signature-256': 'sha256=stub' },
+      body: 'x'.repeat(4 * 1024 * 1024 + 1),
+    })
+
+    await expect(POST(request)).resolves.toMatchObject({ init: { status: 413 } })
+    expect(h.state.afterCallbacks).toHaveLength(0)
+  })
+})
 
 beforeEach(() => {
   vi.clearAllMocks()
@@ -894,10 +909,11 @@ describe('template-lifecycle webhooks: WABA id is threaded to the handler (#534)
         },
       ],
     }
-    const req = {
-      text: async () => JSON.stringify(body),
-      headers: { get: () => 'sha256=stub' },
-    } as unknown as Request
+    const req = new Request('https://example.test/api/whatsapp/webhook', {
+      method: 'POST',
+      headers: { 'x-hub-signature-256': 'sha256=stub' },
+      body: JSON.stringify(body),
+    })
 
     await POST(req)
     for (const cb of h.state.afterCallbacks) await cb()
