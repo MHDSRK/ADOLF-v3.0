@@ -1,5 +1,5 @@
 import { NextResponse, after } from 'next/server'
-import { decrypt, encrypt, isLegacyFormat } from '@/lib/whatsapp/encryption'
+import { decrypt, encrypt } from '@/lib/whatsapp/encryption'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { hashVerifyToken } from '@/lib/whatsapp/verify-token'
 import { getMediaUrl } from '@/lib/whatsapp/meta-api'
@@ -36,6 +36,7 @@ import { processCoexistenceEchoes } from '@/lib/whatsapp/coexistence-echo'
 export const maxDuration = 60
 
 const supabaseAdmin = createAdminClient
+const MAX_WEBHOOK_BODY_BYTES = 4 * 1024 * 1024
 
 interface WhatsAppMessage {
   id: string
@@ -257,9 +258,66 @@ export async function GET(request: Request) {
 
 // POST - Receive messages
 export async function POST(request: Request) {
+  const contentLength = request.headers.get('content-length')
+  if (
+    contentLength &&
+    /^\d+$/.test(contentLength) &&
+    Number(contentLength) > MAX_WEBHOOK_BODY_BYTES
+  ) {
+    return NextResponse.json(
+      { error: 'Webhook payload too large' },
+      { status: 413 },
+    )
+  }
+
   // Read raw body first so we can HMAC-verify the exact bytes Meta
   // signed. request.json() would re-encode and break the signature.
-  const rawBody = await request.text()
+  const reader = request.body?.getReader()
+  if (!reader) {
+    return NextResponse.json({ error: 'Missing request body' }, { status: 400 })
+  }
+  const chunks: Uint8Array[] = []
+  let bodyBytes = 0
+  try {
+    while (true) {
+      const { done, value } = await reader.read()
+      if (done) break
+      bodyBytes += value.byteLength
+      if (bodyBytes > MAX_WEBHOOK_BODY_BYTES) {
+        void reader.cancel().catch((error) =>
+          console.warn('[webhook] failed to cancel oversized body stream:', error),
+        )
+        return NextResponse.json(
+          { error: 'Webhook payload too large' },
+          { status: 413 },
+        )
+      }
+      chunks.push(value)
+    }
+  } catch (error) {
+    console.warn('[webhook] failed to read request body:', error)
+    return NextResponse.json(
+      { error: 'Could not read webhook body' },
+      { status: 400 },
+    )
+  }
+
+  const rawBytes = new Uint8Array(bodyBytes)
+  let offset = 0
+  for (const chunk of chunks) {
+    rawBytes.set(chunk, offset)
+    offset += chunk.byteLength
+  }
+
+  let rawBody: string
+  try {
+    rawBody = new TextDecoder('utf-8', { fatal: true }).decode(rawBytes)
+  } catch {
+    return NextResponse.json(
+      { error: 'Webhook body must be UTF-8' },
+      { status: 400 },
+    )
+  }
   const signature = request.headers.get('x-hub-signature-256')
 
   if (!verifyMetaWebhookSignature(rawBody, signature)) {

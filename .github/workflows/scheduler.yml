@@ -25,7 +25,8 @@ jobs:
   run:
     name: Run scheduled workers
     runs-on: ubuntu-latest
-    timeout-minutes: 2
+    # A command may make up to three 55-second attempts.
+    timeout-minutes: 4
     steps:
       - name: Invoke scheduler
         env:
@@ -33,6 +34,12 @@ jobs:
           CRON_SECRET: ${{ secrets.CRON_SECRET }}
         run: |
           set -euo pipefail
-          test -n "$BASE_URL"
-          test -n "$CRON_SECRET"
+          if [[ -z "$BASE_URL" ]]; then
+            echo "::error::Repository secret ADOLF_CRON_BASE_URL is missing or empty."
+            exit 1
+          fi
+          if [[ -z "$CRON_SECRET" ]]; then
+            echo "::error::Repository secret CRON_SECRET is missing or empty."
+            exit 1
+          fi
           curl --fail-with-body --silent --show-error             --retry 2 --retry-delay 5 --max-time 55             -H "Authorization: Bearer $CRON_SECRET"             "$BASE_URL/api/cron"

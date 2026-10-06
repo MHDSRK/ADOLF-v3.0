@@ -176,7 +176,11 @@
       "sendTemplateFailed": "Error al enviar la plantilla: {reason}",
       "waitForSending": "Espera a que el mensaje termine de enviarse",
       "reactionFailed": "Error en la reacción: {reason}",
-      "assignmentUpdateFailed": "Error al actualizar la asignación"
+      "assignmentUpdateFailed": "Error al actualizar la asignación",
+      "clearChat": "Borrar conversación",
+      "clearChatConfirm": "¿Borrar todos los mensajes de esta conversación? Esto solo elimina el historial de ADOLF; no borra los mensajes de WhatsApp.",
+      "clearChatSuccess": "Se borró el historial de la conversación.",
+      "clearChatFailed": "No se pudo borrar la conversación: {reason}"
     },
     "sessionTimer": {
       "expired": "Expirada",

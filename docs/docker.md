@@ -39,7 +39,7 @@ is included.
   `docker compose --env-file .env.local up --build -d`. This includes
   `NEXT_PUBLIC_APP_LOCALE` (`en | ko | pt | es`), so the UI language is
   fixed per image.
-- Everything else (`SUPABASE_SERVICE_ROLE_KEY`, `ENCRYPTION_KEY`,
+- Everything else (`SUPABASE_SECRET_KEY`, `ENCRYPTION_KEY`,
   `META_APP_SECRET`, …) is read at **runtime** from `.env.local` via
   `env_file` and is never baked into the image — safe to change with
   just a container restart.
@@ -49,7 +49,7 @@ is included.
 ```bash
 docker build \
   --build-arg NEXT_PUBLIC_SUPABASE_URL=https://your-project.supabase.co \
-  --build-arg NEXT_PUBLIC_SUPABASE_ANON_KEY=your-anon-key \
+  --build-arg NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=your-publishable-key \
   -t Adolf-V3.0 .
 
 docker run -d --env-file .env.local -e PORT=3000 -p 3000:3000 Adolf-V3.0
@@ -69,8 +69,8 @@ docker run -d --env-file .env.local -e PORT=3000 -p 3000:3000 Adolf-V3.0
   unviewable once Meta drops them. Files over 16 MB (the bucket's
   limit) are never copied.
 - Nothing inside the container is scheduled. If you use automation
-  Wait steps or flows, point an external scheduler at
-  `GET /api/automations/cron` and `GET /api/flows/cron` on this
-  deployment, sending the shared secret in the `x-cron-secret` header
-  (`AUTOMATION_CRON_SECRET`, see `.env.local.example`). Both return
-  503 until that variable is set.
+  Wait steps or flows, point an external scheduler at `GET /api/cron`
+  on this deployment, sending the shared secret in the
+  `Authorization` bearer header or `x-cron-secret` header
+  (`CRON_SECRET`, see `.env.local.example`). The endpoint returns 503
+  until that variable is set.

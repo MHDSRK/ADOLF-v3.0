@@ -176,7 +176,11 @@
       "sendTemplateFailed": "템플릿 전송 실패: {reason}",
       "waitForSending": "메시지 전송이 끝날 때까지 기다려 주세요",
       "reactionFailed": "반응 추가 실패: {reason}",
-      "assignmentUpdateFailed": "담당자 변경에 실패했습니다"
+      "assignmentUpdateFailed": "담당자 변경에 실패했습니다",
+      "clearChat": "대화 기록 삭제",
+      "clearChatConfirm": "이 대화의 모든 메시지를 삭제할까요? ADOLF의 기록만 삭제되며 WhatsApp 메시지는 삭제되지 않습니다.",
+      "clearChatSuccess": "대화 기록을 삭제했습니다.",
+      "clearChatFailed": "대화 기록 삭제 실패: {reason}"
     },
     "sessionTimer": {
       "expired": "만료됨",

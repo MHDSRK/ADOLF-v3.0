@@ -176,7 +176,11 @@
       "sendTemplateFailed": "Falha ao enviar o modelo: {reason}",
       "waitForSending": "Aguarde a mensagem terminar de ser enviada",
       "reactionFailed": "Falha na reação: {reason}",
-      "assignmentUpdateFailed": "Falha ao atualizar a atribuição"
+      "assignmentUpdateFailed": "Falha ao atualizar a atribuição",
+      "clearChat": "Limpar conversa",
+      "clearChatConfirm": "Limpar todas as mensagens desta conversa? Isso remove o histórico apenas do ADOLF; as mensagens do WhatsApp não serão excluídas.",
+      "clearChatSuccess": "Histórico da conversa limpo.",
+      "clearChatFailed": "Falha ao limpar a conversa: {reason}"
     },
     "sessionTimer": {
       "expired": "Expirada",
